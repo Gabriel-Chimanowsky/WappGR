@@ -1,0 +1,246 @@
+{
+  "connection": {
+    "status": "CONNECTED",
+    "phone": "+55 11 98877-6655",
+    "profileName": "WappGR Business",
+    "instanceType": "WHATSAPP_WEB_QR",
+    "connectedAt": "2026-08-23T16:51:34.193Z",
+    "qrCodeUrl": "https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=WappGR_Simulated_Session_Connect"
+  },
+  "optInConfig": {
+    "autoOptInOnFirstMessage": true,
+    "welcomeMessage": "Olá! 👋 Seja bem-vindo à nossa central de novidades. Para receber nossas ofertas exclusivas e atualizações diretamente no seu WhatsApp, responda *1* ou *SIM*. Caso não queira receber, responda *SAIR*.",
+    "confirmationMessage": "Perfeito! 🎉 Seu cadastro foi ativado. Você agora receberá nossas novidades e promoções com total segurança.",
+    "optOutMessage": "Entendido! 👍 Você foi removido da nossa lista e não receberá mais mensagens automáticas.",
+    "yesKeywords": [
+      "SIM",
+      "QUERO",
+      "1",
+      "ACEITO",
+      "SIM!"
+    ],
+    "noKeywords": [
+      "SAIR",
+      "PARAR",
+      "CANCELAR",
+      "2",
+      "NÃO",
+      "NAO"
+    ]
+  },
+  "categories": [
+    {
+      "id": "cat-1",
+      "name": "Clientes VIP",
+      "color": "#10b981",
+      "description": "Compradores frequentes e de alto valor"
+    },
+    {
+      "id": "cat-2",
+      "name": "Interessados Produto A",
+      "color": "#3b82f6",
+      "description": "Leads que consultaram o Produto A"
+    },
+    {
+      "id": "cat-3",
+      "name": "Compradores Recentes",
+      "color": "#8b5cf6",
+      "description": "Compraram nos últimos 30 dias"
+    },
+    {
+      "id": "cat-4",
+      "name": "Leads Orgânicos",
+      "color": "#f59e0b",
+      "description": "Entraram via WhatsApp diretamente"
+    }
+  ],
+  "leads": [
+    {
+      "id": "lead-101",
+      "phone": "5511999887766",
+      "name": "Carlos Eduardo Silva",
+      "category": "Clientes VIP",
+      "status": "OPT_IN",
+      "consentMethod": "WHATSAPP_KEYWORD",
+      "consentTimestamp": "2026-08-20T14:30:00.000Z",
+      "notes": "Cliente VIP desde 2025. Comprou módulo avançado.",
+      "lastInteraction": "2026-08-22T10:15:00.000Z",
+      "messagesSentCount": 14,
+      "createdAt": "2026-08-15T09:00:00.000Z"
+    },
+    {
+      "id": "lead-102",
+      "phone": "5521988776655",
+      "name": "Mariana Oliveira",
+      "category": "Interessados Produto A",
+      "status": "OPT_IN",
+      "consentMethod": "FORM_WEBHOOK",
+      "consentTimestamp": "2026-08-21T11:20:00.000Z",
+      "notes": "Cadastrou pelo formulário do site e autorizou mensagens.",
+      "lastInteraction": "2026-08-23T09:00:00.000Z",
+      "messagesSentCount": 8,
+      "createdAt": "2026-08-21T11:20:00.000Z"
+    },
+    {
+      "id": "lead-103",
+      "phone": "5531977665544",
+      "name": "Roberto Souza",
+      "category": "Leads Orgânicos",
+      "status": "OPT_OUT",
+      "consentMethod": "OPT_OUT_REQUESTED",
+      "consentTimestamp": "2026-08-22T16:45:00.000Z",
+      "notes": "Solicitou remoção enviando \"SAIR\". Bloqueio ativo para disparos.",
+      "lastInteraction": "2026-08-22T16:45:00.000Z",
+      "messagesSentCount": 3,
+      "createdAt": "2026-08-10T14:00:00.000Z"
+    },
+    {
+      "id": "lead-104",
+      "phone": "5541966554433",
+      "name": "Fernanda Lima",
+      "category": "Compradores Recentes",
+      "status": "OPT_IN",
+      "consentMethod": "MANUAL",
+      "consentTimestamp": "2026-08-19T08:10:00.000Z",
+      "notes": "Adicionada manualmente no balcão de vendas.",
+      "lastInteraction": "2026-08-23T11:30:00.000Z",
+      "messagesSentCount": 19,
+      "createdAt": "2026-08-19T08:00:00.000Z"
+    },
+    {
+      "id": "lead-105",
+      "phone": "5551955443322",
+      "name": "Lucas Martins",
+      "category": "Interessados Produto A",
+      "status": "PENDING",
+      "consentMethod": "NONE",
+      "consentTimestamp": null,
+      "notes": "Aguardando resposta do fluxo de opt-in.",
+      "lastInteraction": "2026-08-23T12:00:00.000Z",
+      "messagesSentCount": 1,
+      "createdAt": "2026-08-23T12:00:00.000Z"
+    },
+    {
+      "id": "lead-106",
+      "phone": "5561944332211",
+      "name": "Juliana Costa",
+      "category": "Clientes VIP",
+      "status": "OPT_IN",
+      "consentMethod": "WHATSAPP_KEYWORD",
+      "consentTimestamp": "2026-08-18T19:00:00.000Z",
+      "notes": "Respondeu SIM no WhatsApp.",
+      "lastInteraction": "2026-08-22T15:40:00.000Z",
+      "messagesSentCount": 22,
+      "createdAt": "2026-08-18T18:50:00.000Z"
+    }
+  ],
+  "campaigns": [
+    {
+      "id": "camp-1",
+      "title": "Lançamento Oferta Relâmpago VIP",
+      "message": "Olá {nome}! 🚀 Como cliente VIP, liberamos 30% OFF exclusivo no Produto A válido até hoje às 23:59. Acesse o link: https://wappgr.com/oferta",
+      "categoryFilter": "Clientes VIP",
+      "consentFilterOnly": true,
+      "totalTarget": 2,
+      "sentCount": 2,
+      "deliveredCount": 2,
+      "failedCount": 0,
+      "pacingSeconds": 12,
+      "status": "COMPLETED",
+      "sentAt": "2026-08-22T10:00:00.000Z",
+      "createdAt": "2026-08-22T09:30:00.000Z"
+    },
+    {
+      "id": "camp-2",
+      "title": "Boletim Semanal de Novidades",
+      "message": "Oi {nome}, confira as principais dicas da semana sobre automação e CRM para impulsionar suas vendas!",
+      "categoryFilter": "TODOS",
+      "consentFilterOnly": true,
+      "totalTarget": 4,
+      "sentCount": 4,
+      "deliveredCount": 4,
+      "failedCount": 0,
+      "pacingSeconds": 15,
+      "status": "COMPLETED",
+      "sentAt": "2026-08-21T14:00:00.000Z",
+      "createdAt": "2026-08-21T13:00:00.000Z"
+    }
+  ],
+  "schedules": [
+    {
+      "id": "sched-1",
+      "title": "Lembrete Diário de Promoções 09h",
+      "message": "Olá {nome}! Bom dia ☀️ Confira as novidades do dia em nosso catálogo!",
+      "categoryFilter": "Interessados Produto A",
+      "consentFilterOnly": true,
+      "recurrence": "DAILY",
+      "timeOfDay": "09:00",
+      "specificDays": [
+        "MON",
+        "WED",
+        "FRI"
+      ],
+      "pacingSeconds": 10,
+      "active": true,
+      "lastRunAt": "2026-08-23T09:00:00.000Z",
+      "nextRunAt": "2026-08-24T09:00:00.000Z",
+      "createdAt": "2026-08-20T15:00:00.000Z"
+    },
+    {
+      "id": "sched-2",
+      "title": "Disparo Dia Sim / Dia Não (Nutrição VIP)",
+      "message": "Oi {nome}! Mais uma dica exclusiva preparada para os nossos parceiros VIP!",
+      "categoryFilter": "Clientes VIP",
+      "consentFilterOnly": true,
+      "recurrence": "EVERY_OTHER_DAY",
+      "timeOfDay": "15:30",
+      "pacingSeconds": 15,
+      "active": true,
+      "lastRunAt": "2026-08-22T15:30:00.000Z",
+      "nextRunAt": "2026-08-24T15:30:00.000Z",
+      "createdAt": "2026-08-22T10:00:00.000Z"
+    }
+  ],
+  "messagesHistory": [
+    {
+      "id": "msg-1",
+      "leadId": "lead-101",
+      "leadPhone": "5511999887766",
+      "leadName": "Carlos Eduardo Silva",
+      "direction": "OUTBOUND",
+      "text": "Olá Carlos Eduardo Silva! 🚀 Como cliente VIP, liberamos 30% OFF exclusivo...",
+      "type": "BROADCAST",
+      "timestamp": "2026-08-22T10:00:05.000Z"
+    },
+    {
+      "id": "msg-2",
+      "leadId": "lead-103",
+      "leadPhone": "5531977665544",
+      "leadName": "Roberto Souza",
+      "direction": "INBOUND",
+      "text": "SAIR",
+      "type": "OPT_OUT",
+      "timestamp": "2026-08-22T16:45:00.000Z"
+    },
+    {
+      "id": "msg-3",
+      "leadId": "lead-103",
+      "leadPhone": "5531977665544",
+      "leadName": "Roberto Souza",
+      "direction": "OUTBOUND",
+      "text": "Entendido! 👍 Você foi removido da nossa lista e não receberá mais mensagens automáticas.",
+      "type": "AUTO_REPLY",
+      "timestamp": "2026-08-22T16:45:02.000Z"
+    }
+  ],
+  "webhooks": {
+    "apiKey": "wappgr_live_sec_9876543210abcdef",
+    "inboundLeadUrl": "http://localhost:3001/api/v1/crm/webhook/lead",
+    "outboundEventsUrl": "https://seu-crm.com.br/webhooks/wappgr-events",
+    "enabledEvents": {
+      "leadCreated": true,
+      "optInChanged": true,
+      "broadcastSent": true
+    }
+  }
+}

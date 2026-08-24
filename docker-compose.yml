@@ -1,0 +1,70 @@
+version: '3.8'
+
+# ═══════════════════════════════════════════════════════════
+# WappGR - Evolution API Docker Compose
+# 
+# Para iniciar: docker compose up -d
+# Painel Evolution: http://localhost:8080/manager
+# ═══════════════════════════════════════════════════════════
+
+services:
+  evolution-api:
+    image: atendai/evolution-api:latest
+    container_name: wappgr-evolution
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      # ─── Server ───────────────────────────────
+      - SERVER_URL=http://localhost:8080
+      - SERVER_PORT=8080
+      
+      # ─── Authentication ───────────────────────
+      - AUTHENTICATION_API_KEY=wappgr_evo_key_2026
+      - AUTHENTICATION_EXPOSE_IN_FETCH_INSTANCES=true
+      
+      # ─── Database (Internal SQLite) ───────────
+      - DATABASE_PROVIDER=postgresql
+      - DATABASE_CONNECTION_URI=postgresql://postgres:wappgr2026@postgres:5432/evolution
+      
+      # ─── RabbitMQ (disabled for simplicity) ───
+      - RABBITMQ_ENABLED=false
+      
+      # ─── Websocket ────────────────────────────
+      - WEBSOCKET_ENABLED=true
+      
+      # ─── Logging ──────────────────────────────
+      - LOG_LEVEL=WARN
+      - LOG_COLOR=true
+      
+      # ─── Instance cleanup ─────────────────────
+      - DEL_INSTANCE=false
+      
+      # ─── CORS ─────────────────────────────────
+      - CORS_ORIGIN=*
+      
+    volumes:
+      - evolution_instances:/evolution/instances
+      - evolution_store:/evolution/store
+    depends_on:
+      - postgres
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: wappgr-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=wappgr2026
+      - POSTGRES_DB=evolution
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+
+volumes:
+  evolution_instances:
+  evolution_store:
+  postgres_data:
