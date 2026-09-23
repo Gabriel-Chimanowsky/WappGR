@@ -1164,29 +1164,25 @@ export default function LeadsManager({
 
             {/* Barra de Ações Rápidas de Limpeza */}
             <div className="flex flex-wrap items-center gap-2 text-xs">
-              {corruptedCategories.length > 0 && (
-                <button
-                  onClick={handleCleanupCorruptedCats}
-                  disabled={isCleaningCats}
-                  className="px-3.5 py-2 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/50 font-bold flex items-center gap-2 transition-all shadow-sm"
-                  title="Move todos os leads das categorias corrompidas para Leads Orgânicos e remove as categorias bugadas"
-                >
-                  <AlertCircle className="w-3.5 h-3.5 text-rose-400" />
-                  Reparar {corruptedCategories.length} Bugadas (Salvar Leads)
-                </button>
-              )}
+              <button
+                onClick={handleCleanupCorruptedCats}
+                disabled={isCleaningCats}
+                className="px-3.5 py-2 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/50 font-bold flex items-center gap-2 transition-all shadow-sm"
+                title="Move todos os leads das categorias corrompidas para Leads Orgânicos e remove as categorias bugadas"
+              >
+                <AlertCircle className="w-3.5 h-3.5 text-rose-400" />
+                {isCleaningCats ? 'Reparando...' : `Reparar Categorias Bugadas${corruptedCategories.length > 0 ? ` (${corruptedCategories.length})` : ''}`}
+              </button>
 
-              {emptyCategories.length > 0 && (
-                <button
-                  onClick={handleCleanupEmptyCats}
-                  disabled={isCleaningCats}
-                  className="px-3.5 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 font-bold flex items-center gap-2 transition-all shadow-sm"
-                  title="Remove em 1 clique todas as categorias que possuem 0 leads vinculados"
-                >
-                  <Trash2 className="w-3.5 h-3.5 text-amber-400" />
-                  {isCleaningCats ? 'Limpando...' : `Limpar ${emptyCategories.length} Categorias Vazias`}
-                </button>
-              )}
+              <button
+                onClick={handleCleanupEmptyCats}
+                disabled={isCleaningCats}
+                className="px-3.5 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 font-bold flex items-center gap-2 transition-all shadow-sm"
+                title="Remove todas as categorias que possuem 0 leads vinculados"
+              >
+                <Trash2 className="w-3.5 h-3.5 text-amber-400" />
+                {isCleaningCats ? 'Limpando...' : `Limpar Categorias Vazias${emptyCategories.length > 0 ? ` (${emptyCategories.length})` : ''}`}
+              </button>
 
               {selectedCatIds.length > 0 && (
                 <button
