@@ -426,38 +426,280 @@ app.delete('/api/v1/leads/:id', (req, res) => {
   res.json({ success: true });
 });
 
-// Bulk import leads via CSV
+// Helper: Gerar CSV com codificação UTF-8 BOM para Excel
+function generateLeadsCsv(leads) {
+  const statusLabel = (st) => {
+    if (st === 'OPT_IN') return 'Aceitou (Opt-in Confirmado)';
+    if (st === 'OPT_OUT') return 'Recusou / Bloqueado (Opt-out)';
+    return 'Aguardando Confirmacao (Pendente)';
+  };
+
+  const escapeCsv = (str) => {
+    if (str === null || str === undefined) return '""';
+    const text = String(str).replace(/"/g, '""');
+    return `"${text}"`;
+  };
+
+  const headers = [
+    'ID',
+    'Nome',
+    'Telefone',
+    'Categoria',
+    'Status de Consentimento',
+    'Metodo de Consentimento',
+    'Data de Consentimento',
+    'Envios Realizados',
+    'Observacoes',
+    'Data de Cadastro'
+  ];
+
+  const rows = leads.map(l => [
+    escapeCsv(l.id),
+    escapeCsv(l.name),
+    escapeCsv(l.phone),
+    escapeCsv(l.category_name || l.category || 'Sem Categoria'),
+    escapeCsv(statusLabel(l.status)),
+    escapeCsv(l.consent_method || 'Nenhum'),
+    escapeCsv(l.consent_timestamp || ''),
+    escapeCsv(l.messages_sent_count || 0),
+    escapeCsv(l.notes || ''),
+    escapeCsv(l.created_at || '')
+  ].join(';'));
+
+  return '\uFEFF' + headers.join(';') + '\r\n' + rows.join('\r\n');
+}
+
+// Export leads to CSV
+app.get('/api/v1/leads/export', (req, res) => {
+  const d = getDb();
+  const { category, status, search } = req.query;
+
+  let where = [];
+  let params = [];
+
+  if (category && category !== 'TODOS') {
+    where.push('c.name = ?');
+    params.push(category);
+  }
+  if (status && status !== 'TODOS') {
+    where.push('l.status = ?');
+    params.push(status);
+  }
+  if (search) {
+    where.push("(l.name LIKE ? OR l.phone LIKE ? OR l.notes LIKE ?)");
+    const q = `%${search}%`;
+    params.push(q, q, q);
+  }
+
+  const whereClause = where.length > 0 ? 'WHERE ' + where.join(' AND ') : '';
+  const sql = `
+    SELECT l.*, c.name as category_name
+    FROM leads l
+    LEFT JOIN categories c ON l.category_id = c.id
+    ${whereClause}
+    ORDER BY l.created_at DESC
+  `;
+  const leads = d.prepare(sql).all(...params);
+  const csv = generateLeadsCsv(leads);
+
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="leads_wappgr_${new Date().toISOString().slice(0, 10)}.csv"`);
+  res.send(csv);
+});
+
+app.post('/api/v1/leads/export', (req, res) => {
+  const d = getDb();
+  const { leadIds, category, status, search } = req.body;
+
+  let where = [];
+  let params = [];
+
+  if (Array.isArray(leadIds) && leadIds.length > 0) {
+    const placeholders = leadIds.map(() => '?').join(',');
+    where.push(`l.id IN (${placeholders})`);
+    params.push(...leadIds);
+  } else {
+    if (category && category !== 'TODOS') {
+      where.push('c.name = ?');
+      params.push(category);
+    }
+    if (status && status !== 'TODOS') {
+      where.push('l.status = ?');
+      params.push(status);
+    }
+    if (search) {
+      where.push("(l.name LIKE ? OR l.phone LIKE ? OR l.notes LIKE ?)");
+      const q = `%${search}%`;
+      params.push(q, q, q);
+    }
+  }
+
+  const whereClause = where.length > 0 ? 'WHERE ' + where.join(' AND ') : '';
+  const sql = `
+    SELECT l.*, c.name as category_name
+    FROM leads l
+    LEFT JOIN categories c ON l.category_id = c.id
+    ${whereClause}
+    ORDER BY l.created_at DESC
+  `;
+  const leads = d.prepare(sql).all(...params);
+  const csv = generateLeadsCsv(leads);
+
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="leads_wappgr_${new Date().toISOString().slice(0, 10)}.csv"`);
+  res.send(csv);
+});
+
+// Helper: Normalizar formato de data (brasileiro DD/MM/AAAA ou ISO) para SQLite
+function normalizeDate(str) {
+  if (!str) return null;
+  const s = String(str).trim();
+  if (!s || s.toLowerCase() === 'nunca' || s.toLowerCase() === 'null' || s === '-') return null;
+  
+  const brMatch = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?/);
+  if (brMatch) {
+    const day = brMatch[1].padStart(2, '0');
+    const month = brMatch[2].padStart(2, '0');
+    const year = brMatch[3];
+    const hour = (brMatch[4] || '00').padStart(2, '0');
+    const min = (brMatch[5] || '00').padStart(2, '0');
+    const sec = (brMatch[6] || '00').padStart(2, '0');
+    return `${year}-${month}-${day} ${hour}:${min}:${sec}`;
+  }
+  const d = new Date(s);
+  if (!isNaN(d.getTime())) {
+    return d.toISOString().replace('T', ' ').slice(0, 19);
+  }
+  return null;
+}
+
+// Bulk import leads with direct Opt-In classification
 app.post('/api/v1/leads/import', (req, res) => {
   const d = getDb();
-  const { leads: leadsData } = req.body;
-  if (!Array.isArray(leadsData)) return res.status(400).json({ error: 'Array de leads obrigatório.' });
+  const { 
+    leads: leadsData, 
+    defaultCategory, 
+    defaultStatus = 'OPT_IN', 
+    updateExisting = false 
+  } = req.body;
 
-  const insertStmt = d.prepare(`INSERT OR IGNORE INTO leads (id, phone, name, category_id, status, consent_method, notes, created_at) VALUES (?, ?, ?, ?, ?, 'IMPORT', ?, datetime('now'))`);
+  if (!Array.isArray(leadsData)) {
+    return res.status(400).json({ error: 'Array de leads obrigatório.' });
+  }
+
+  const insertStmt = d.prepare(`
+    INSERT INTO leads (id, phone, name, category_id, status, consent_method, consent_timestamp, notes, created_at, last_interaction) 
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, datetime('now')), ?)
+  `);
+
+  const updateStmt = d.prepare(`
+    UPDATE leads SET 
+      name = CASE WHEN ? != '' THEN ? ELSE name END,
+      category_id = COALESCE(?, category_id),
+      status = ?,
+      consent_method = ?,
+      consent_timestamp = ?,
+      notes = CASE WHEN ? != '' THEN ? ELSE notes END,
+      last_interaction = CASE WHEN ? IS NOT NULL THEN ? ELSE last_interaction END
+    WHERE id = ?
+  `);
+
   let imported = 0;
+  let updated = 0;
   let skipped = 0;
 
-  const insertMany = d.transaction((items) => {
+  // Cache categories
+  const catCache = new Map();
+  const getOrCreateCategoryId = (catName) => {
+    if (!catName) return null;
+    if (catCache.has(catName)) return catCache.get(catName);
+
+    let cat = d.prepare('SELECT id FROM categories WHERE name = ?').get(catName);
+    if (!cat) {
+      const newId = generateId();
+      d.prepare('INSERT INTO categories (id, name, color, description) VALUES (?, ?, ?, ?)').run(
+        newId, catName, '#10b981', 'Criada automaticamente via importação'
+      );
+      catCache.set(catName, newId);
+      return newId;
+    }
+    catCache.set(catName, cat.id);
+    return cat.id;
+  };
+
+  const defaultCatId = defaultCategory ? getOrCreateCategoryId(defaultCategory) : null;
+
+  const insertOrUpdateMany = d.transaction((items) => {
     for (const item of items) {
       const phone = normalizePhone(item.phone);
-      if (!phone || !item.name) { skipped++; continue; }
-      let catId = null;
-      if (item.category) {
-        let cat = d.prepare('SELECT id FROM categories WHERE name = ?').get(item.category);
-        if (!cat) {
-          catId = generateId();
-          d.prepare('INSERT INTO categories (id, name, color, description) VALUES (?, ?, ?, ?)').run(catId, item.category, '#10b981', 'Criada automaticamente');
-        } else {
-          catId = cat.id;
-        }
+      if (!phone || !item.name) { 
+        skipped++; 
+        continue; 
       }
-      const result = insertStmt.run(generateId(), phone, item.name, catId, item.status || 'PENDING', item.notes || '');
-      if (result.changes > 0) imported++;
-      else skipped++;
+
+      const finalStatus = item.status || defaultStatus || 'OPT_IN';
+      let consentMethod = 'IMPORT';
+      let consentTimestamp = null;
+
+      if (finalStatus === 'OPT_IN') {
+        consentMethod = 'IMPORT_OPT_IN';
+        consentTimestamp = new Date().toISOString();
+      } else if (finalStatus === 'OPT_OUT') {
+        consentMethod = 'IMPORT_OPT_OUT';
+        consentTimestamp = new Date().toISOString();
+      }
+
+      let catId = item.category ? getOrCreateCategoryId(item.category) : defaultCatId;
+      const createdAt = normalizeDate(item.created_at || item.since);
+      const lastInteraction = normalizeDate(item.last_interaction || item.lastSent);
+
+      const existing = d.prepare('SELECT id FROM leads WHERE phone = ?').get(phone);
+
+      if (existing) {
+        if (updateExisting) {
+          updateStmt.run(
+            item.name || '',
+            item.name || '',
+            catId,
+            finalStatus,
+            consentMethod,
+            consentTimestamp,
+            item.notes || '',
+            item.notes || '',
+            lastInteraction,
+            lastInteraction,
+            existing.id
+          );
+          updated++;
+        } else {
+          skipped++;
+        }
+      } else {
+        insertStmt.run(
+          generateId(),
+          phone,
+          item.name,
+          catId,
+          finalStatus,
+          consentMethod,
+          consentTimestamp,
+          item.notes || '',
+          createdAt,
+          lastInteraction
+        );
+        imported++;
+      }
     }
   });
 
-  insertMany(leadsData);
-  res.json({ success: true, imported, skipped, total: leadsData.length });
+  insertOrUpdateMany(leadsData);
+  res.json({ 
+    success: true, 
+    imported, 
+    updated, 
+    skipped, 
+    total: leadsData.length 
+  });
 });
 
 // Bulk update leads (category or status)

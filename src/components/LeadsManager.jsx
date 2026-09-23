@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import { 
   Users, 
   Search, 
@@ -11,6 +11,7 @@ import {
   Trash2, 
   X,
   Upload,
+  Download,
   AlertCircle,
   Edit2,
   CheckSquare,
@@ -19,8 +20,163 @@ import {
   Settings,
   FolderEdit,
   Save,
-  Check
+  Check,
+  FileText,
+  CheckCircle2,
+  HelpCircle,
+  ArrowRight,
+  FileSpreadsheet
 } from 'lucide-react';
+
+// Helper: Parser flexível de leads a partir de texto (CSV, TSV, TXT ou colado de planilha)
+// Mapeia nativamente: Contato | Desde | Telefone | Etiquetas | Último Envio (ignora Ação Rápida)
+function parseLeadsInput(text, defaultCategory, defaultStatus) {
+  if (!text || !text.trim()) return [];
+
+  const rawLines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  if (rawLines.length === 0) return [];
+
+  const firstLine = rawLines[0];
+  // Priorizar tabulação \t se presente (padrão de cópia do Excel e planilhas), depois ;, |, ,
+  const delimiter = firstLine.includes('\t') 
+    ? '\t' 
+    : (firstLine.includes(';') ? ';' : (firstLine.includes('|') ? '|' : ','));
+  
+  const splitLine = (l) => {
+    if (delimiter === '\t') {
+      return l.split('\t').map(c => c.replace(/^["']|["']$/g, '').trim());
+    }
+    const regex = new RegExp(`(?:^|${delimiter})(?:"([^"]*(?:""[^"]*)*)"|([^"${delimiter}]*))`, 'g');
+    const cols = [];
+    let match;
+    while ((match = regex.exec(l)) !== null) {
+      let val = match[1] !== undefined ? match[1].replace(/""/g, '"') : match[2];
+      cols.push((val || '').trim());
+      if (regex.lastIndex === 0) break;
+    }
+    return cols;
+  };
+
+  const cleanH = (h) => String(h || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim();
+
+  const firstCols = splitLine(firstLine);
+  const headers = firstCols.map(cleanH);
+
+  // Detecta se a primeira linha é cabeçalho
+  const hasHeader = headers.some(h => 
+    h === 'contato' || h.includes('contato') || h.includes('nome') || h.includes('name') || h.includes('cliente') || 
+    h.includes('tel') || h.includes('cel') || h.includes('zap') || h.includes('phone') || h.includes('fone') || h.includes('numero') ||
+    h.includes('etiqueta') || h.includes('desde') || h.includes('ultimo')
+  );
+
+  const linesToProcess = hasHeader ? rawLines.slice(1) : rawLines;
+  
+  // Mapeamento específico dos títulos solicitados:
+  // Contato | Desde | Telefone | Etiquetas | Último Envio | Ação Rápida
+  const nameIdx = hasHeader ? headers.findIndex(h => h === 'contato' || h.startsWith('contato') || h.includes('nome') || h.includes('name') || h.includes('cliente')) : -1;
+  const sinceIdx = hasHeader ? headers.findIndex(h => h.includes('desde') || h.includes('criado') || h.includes('cadastro')) : -1;
+  const phoneIdx = hasHeader ? headers.findIndex(h => h.includes('telefone') || h.includes('tel') || h.includes('cel') || h.includes('zap') || h.includes('phone') || h.includes('fone') || h.includes('numero')) : -1;
+  const catIdx = hasHeader ? headers.findIndex(h => h.includes('etiqueta') || h.includes('tag') || h.includes('cat') || h.includes('grupo')) : -1;
+  const lastSentIdx = hasHeader ? headers.findIndex(h => h.includes('ultimo') || h.includes('disparo') || h.includes('envio')) : -1;
+  const notesIdx = hasHeader ? headers.findIndex(h => h.includes('not') || h.includes('obs') || h.includes('desc')) : -1;
+  // Ação Rápida: explicitamente ignorada
+
+  const results = [];
+
+  for (const line of linesToProcess) {
+    const cols = splitLine(line);
+    if (!cols || cols.length === 0 || (cols.length === 1 && !cols[0])) continue;
+
+    let name = '';
+    let phone = '';
+    let category = defaultCategory;
+    let since = '';
+    let lastSent = '';
+    let etiquetas = '';
+    let notes = '';
+
+    if (hasHeader) {
+      phone = phoneIdx !== -1 ? cols[phoneIdx] : cols[0];
+      name = nameIdx !== -1 ? cols[nameIdx] : '';
+      if (catIdx !== -1 && cols[catIdx]) {
+        etiquetas = cols[catIdx];
+        // Se houver múltiplas etiquetas separadas por vírgula, a primeira é usada como categoria principal
+        const firstTag = etiquetas.split(/[,;|]/).map(t => t.trim()).filter(Boolean)[0];
+        category = firstTag || defaultCategory;
+      }
+      if (sinceIdx !== -1 && cols[sinceIdx]) {
+        since = cols[sinceIdx];
+      }
+      if (lastSentIdx !== -1 && cols[lastSentIdx]) {
+        lastSent = cols[lastSentIdx];
+      }
+      if (notesIdx !== -1 && cols[notesIdx]) {
+        notes = cols[notesIdx];
+      }
+    } else {
+      // Detecção heurística quando não há cabeçalho
+      if (cols.length === 1) {
+        phone = cols[0];
+      } else if (cols.length === 2) {
+        const digits0 = cols[0].replace(/\D/g, '');
+        const digits1 = cols[1].replace(/\D/g, '');
+        if (digits0.length >= 8 && digits1.length < 8) {
+          phone = cols[0];
+          name = cols[1];
+        } else {
+          name = cols[0];
+          phone = cols[1];
+        }
+      } else {
+        const digits0 = cols[0].replace(/\D/g, '');
+        if (digits0.length >= 8) {
+          phone = cols[0];
+          name = cols[1];
+          category = cols[2] || defaultCategory;
+          notes = cols.slice(3).join(' ');
+        } else {
+          name = cols[0];
+          phone = cols[1];
+          category = cols[2] || defaultCategory;
+          notes = cols.slice(3).join(' ');
+        }
+      }
+    }
+
+    const cleanDigits = String(phone || '').replace(/\D/g, '');
+    if (cleanDigits.length >= 8) {
+      if (!name || !name.trim()) name = `Contato ${cleanDigits.slice(-4)}`;
+
+      // Montar detalhes completos das notas preservando Etiquetas, Desde e Último Envio
+      const noteParts = [];
+      if (notes && notes.trim()) noteParts.push(notes.trim());
+      if (etiquetas && etiquetas.trim()) noteParts.push(`Etiquetas: ${etiquetas.trim()}`);
+      if (since && since.trim()) noteParts.push(`Desde: ${since.trim()}`);
+      if (lastSent && lastSent.trim() && lastSent.toLowerCase() !== 'nunca' && lastSent !== '-') {
+        noteParts.push(`Último Envio: ${lastSent.trim()}`);
+      }
+
+      const combinedNotes = noteParts.join(' | ') || 'Importado via planilha';
+
+      results.push({
+        name: name.trim(),
+        phone: phone.trim(),
+        category: category || defaultCategory || 'Leads Orgânicos',
+        notes: combinedNotes,
+        status: defaultStatus || 'OPT_IN',
+        since: since.trim(),
+        lastSent: lastSent.trim(),
+        etiquetas: etiquetas.trim()
+      });
+    }
+  }
+
+  return results;
+}
 
 export default function LeadsManager({ 
   leads, 
@@ -35,6 +191,7 @@ export default function LeadsManager({
   onBulkUpdateLeads,
   onBulkDeleteLeads,
   onImportLeads,
+  onExportLeads,
   showToast
 }) {
   const fileInputRef = useRef(null);
@@ -55,6 +212,23 @@ export default function LeadsManager({
   const [editingCategory, setEditingCategory] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
+
+  // NOVO: Estados para Importação em Massa com Classificação
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importTab, setImportTab] = useState('file'); // 'file' | 'paste'
+  const [importPastedText, setImportPastedText] = useState('');
+  const [importConsentStatus, setImportConsentStatus] = useState('OPT_IN'); // 'OPT_IN' | 'PENDING' | 'OPT_OUT'
+  const [importCategory, setImportCategory] = useState(categories[0]?.name || 'Leads Orgânicos');
+  const [isCustomCategory, setIsCustomCategory] = useState(false);
+  const [customCategoryName, setCustomCategoryName] = useState('');
+  const [importUpdateExisting, setImportUpdateExisting] = useState(true);
+  const [parsedImportLeads, setParsedImportLeads] = useState([]);
+  const [importFileName, setImportFileName] = useState('');
+  const [isImporting, setIsImporting] = useState(false);
+
+  // NOVO: Estados para Exportação em Massa
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportScope, setExportScope] = useState('all'); // 'all' | 'filtered' | 'selected'
 
   // Forms
   const [newLeadForm, setNewLeadForm] = useState({
@@ -117,6 +291,13 @@ export default function LeadsManager({
     setBulkStatusTarget('');
   };
 
+  // Bulk action: Direct Status Change (1 clique)
+  const handleApplyBulkDirectStatus = async (status) => {
+    if (selectedLeadIds.length === 0) return;
+    await onBulkUpdateLeads(selectedLeadIds, { status });
+    setSelectedLeadIds([]);
+  };
+
   // Bulk action: Delete
   const handleConfirmBulkDelete = async () => {
     if (selectedLeadIds.length === 0) return;
@@ -125,87 +306,115 @@ export default function LeadsManager({
     setBulkDeleteConfirm(false);
   };
 
-  // CSV Import handler
-  const handleFileImport = (e) => {
+  // Executar exportação
+  const handleExecuteExport = () => {
+    const targetScope = exportScope;
+    if (targetScope === 'selected') {
+      if (selectedLeadIds.length === 0) {
+        showToast('Nenhum lead selecionado para exportar.', 'warning');
+        return;
+      }
+      if (onExportLeads) onExportLeads({ leadIds: selectedLeadIds });
+    } else if (targetScope === 'filtered') {
+      if (onExportLeads) {
+        onExportLeads({
+          category: selectedCategory,
+          status: selectedStatus,
+          search: searchQuery
+        });
+      }
+    } else {
+      if (onExportLeads) onExportLeads({});
+    }
+    setShowExportModal(false);
+  };
+
+  // Exportar selecionados diretamente da barra flutuante
+  const handleExportSelectedDirect = () => {
+    if (selectedLeadIds.length === 0) return;
+    if (onExportLeads) {
+      onExportLeads({ leadIds: selectedLeadIds });
+    }
+  };
+
+  // Tratamento do arquivo selecionado na Importação em Massa
+  const handleImportFileInput = (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
+    setImportFileName(file.name);
     const reader = new FileReader();
     reader.onload = (evt) => {
       try {
         const text = evt.target.result;
-        const rawLines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-        if (rawLines.length === 0) {
-          showToast('Arquivo vazio.', 'error');
-          return;
-        }
-
-        const firstLine = rawLines[0];
-        const delimiter = firstLine.includes(';') ? ';' : (firstLine.includes('\t') ? '\t' : ',');
-        const splitLine = (l) => l.split(delimiter).map(c => c.replace(/^["']|["']$/g, '').trim());
-
-        const headers = splitLine(firstLine).map(h => h.toLowerCase());
-        const hasHeader = headers.some(h => 
-          h.includes('nome') || h.includes('name') || h.includes('cliente') || 
-          h.includes('tel') || h.includes('cel') || h.includes('zap') || h.includes('phone') || h.includes('fone')
-        );
-
-        let leadsData = [];
-
-        if (hasHeader && rawLines.length > 1) {
-          const nameIdx = headers.findIndex(h => h.includes('nome') || h.includes('name') || h.includes('cliente') || h.includes('contato'));
-          const phoneIdx = headers.findIndex(h => h.includes('tel') || h.includes('cel') || h.includes('zap') || h.includes('phone') || h.includes('fone') || h.includes('numero'));
-          const catIdx = headers.findIndex(h => h.includes('cat') || h.includes('tag') || h.includes('grupo'));
-          const notesIdx = headers.findIndex(h => h.includes('not') || h.includes('obs') || h.includes('desc'));
-
-          leadsData = rawLines.slice(1).map(line => {
-            const cols = splitLine(line);
-            const rawPhone = phoneIdx !== -1 ? cols[phoneIdx] : cols[0];
-            const rawName = nameIdx !== -1 ? cols[nameIdx] : (cols[1] || `Lead ${String(rawPhone).slice(-4)}`);
-            return {
-              name: rawName || `Lead ${String(rawPhone).slice(-4)}`,
-              phone: rawPhone,
-              category: (catIdx !== -1 ? cols[catIdx] : '') || categories[0]?.name || 'Leads Orgânicos',
-              notes: (notesIdx !== -1 ? cols[notesIdx] : '') || 'Importado via planilha',
-              status: 'PENDING'
-            };
-          }).filter(l => l.phone && l.phone.replace(/\D/g, '').length >= 8);
+        const targetCategory = isCustomCategory && customCategoryName.trim() ? customCategoryName.trim() : importCategory;
+        const parsed = parseLeadsInput(text, targetCategory, importConsentStatus);
+        setParsedImportLeads(parsed);
+        if (parsed.length === 0) {
+          showToast('Nenhum número de telefone válido encontrado no arquivo.', 'warning');
         } else {
-          leadsData = rawLines.map(line => {
-            const cols = splitLine(line);
-            if (cols.length === 1) {
-              const digits = cols[0].replace(/\D/g, '');
-              return {
-                name: `Contato ${digits.slice(-4)}`,
-                phone: cols[0],
-                category: categories[0]?.name || 'Leads Orgânicos',
-                notes: 'Importado de lista',
-                status: 'PENDING'
-              };
-            } else {
-              return {
-                name: cols[0] || `Contato ${cols[1]?.slice(-4)}`,
-                phone: cols[1] || cols[0],
-                category: cols[2] || categories[0]?.name || 'Leads Orgânicos',
-                notes: cols[3] || 'Importado de lista',
-                status: 'PENDING'
-              };
-            }
-          }).filter(l => l.phone && l.phone.replace(/\D/g, '').length >= 8);
+          showToast(`${parsed.length} contatos válidos identificados no arquivo!`, 'info');
         }
-
-        if (leadsData.length === 0) {
-          showToast('Nenhum telefone válido encontrado no arquivo.', 'error');
-          return;
-        }
-
-        onImportLeads(leadsData);
       } catch (err) {
-        showToast('Erro ao processar arquivo: ' + err.message, 'error');
+        showToast('Erro ao ler arquivo: ' + err.message, 'error');
       }
     };
     reader.readAsText(file);
     e.target.value = '';
+  };
+
+  // Tratamento de texto colado na Importação em Massa
+  const handlePastedTextChange = (text) => {
+    setImportPastedText(text);
+    const targetCategory = isCustomCategory && customCategoryName.trim() ? customCategoryName.trim() : importCategory;
+    const parsed = parseLeadsInput(text, targetCategory, importConsentStatus);
+    setParsedImportLeads(parsed);
+  };
+
+  // Atualizar classificação de consentimento em massa para os contatos identificados
+  const handleConsentStatusSelect = (status) => {
+    setImportConsentStatus(status);
+    setParsedImportLeads(prev => prev.map(l => ({ ...l, status })));
+  };
+
+  // Atualizar categoria de destino para os contatos identificados
+  const handleCategorySelect = (catName) => {
+    setImportCategory(catName);
+    setIsCustomCategory(false);
+    setParsedImportLeads(prev => prev.map(l => ({ ...l, category: catName })));
+  };
+
+  // Submissão da Importação em Massa
+  const handleConfirmImportLeads = async () => {
+    if (parsedImportLeads.length === 0) {
+      showToast('Nenhum contato válido para importar.', 'warning');
+      return;
+    }
+
+    const finalCat = isCustomCategory && customCategoryName.trim() ? customCategoryName.trim() : importCategory;
+    const payloadLeads = parsedImportLeads.map(l => ({
+      ...l,
+      category: l.category || finalCat,
+      status: importConsentStatus
+    }));
+
+    setIsImporting(true);
+    try {
+      await onImportLeads({
+        leads: payloadLeads,
+        defaultCategory: finalCat,
+        defaultStatus: importConsentStatus,
+        updateExisting: importUpdateExisting
+      });
+      setShowImportModal(false);
+      setParsedImportLeads([]);
+      setImportPastedText('');
+      setImportFileName('');
+    } catch (err) {
+      showToast('Erro na importação: ' + err.message, 'error');
+    } finally {
+      setIsImporting(false);
+    }
   };
 
   const handleCreateLeadSubmit = (e) => {
@@ -268,21 +477,30 @@ export default function LeadsManager({
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          <input
-            type="file"
-            ref={fileInputRef}
-            accept=".csv,.txt"
-            onChange={handleFileImport}
-            className="hidden"
-          />
-
           <button
-            onClick={() => fileInputRef.current?.click()}
-            className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 text-slate-300 text-xs font-semibold transition-all"
-            title="Importar contatos via CSV / Excel"
+            onClick={() => {
+              setParsedImportLeads([]);
+              setImportPastedText('');
+              setImportFileName('');
+              setShowImportModal(true);
+            }}
+            className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 text-slate-200 text-xs font-semibold transition-all hover:border-emerald-500/50 shadow-sm"
+            title="Importar contatos em massa (Planilha ou Colar Lista) e classificar Opt-In"
           >
             <Upload className="w-4 h-4 text-emerald-400" />
-            Importar CSV
+            Importar em Massa
+          </button>
+
+          <button
+            onClick={() => {
+              setExportScope(selectedLeadIds.length > 0 ? 'selected' : 'all');
+              setShowExportModal(true);
+            }}
+            className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 text-slate-200 text-xs font-semibold transition-all hover:border-sky-500/50 shadow-sm"
+            title="Exportar contatos em formato CSV / Excel"
+          >
+            <Download className="w-4 h-4 text-sky-400" />
+            Exportar CSV
           </button>
 
           <button
@@ -307,7 +525,6 @@ export default function LeadsManager({
           >
             <Plus className="w-4 h-4" />
             Adicionar Lead
-          </button>
         </div>
       </div>
 
@@ -382,27 +599,46 @@ export default function LeadsManager({
               </button>
             </div>
 
-            {/* Alterar Opt-in em Massa */}
+            {/* Ações Rápidas de Classificação de Opt-In em Massa */}
             <div className="flex items-center gap-1.5 bg-slate-900/90 p-1.5 rounded-xl border border-slate-800">
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 ml-1.5" />
-              <select
-                value={bulkStatusTarget}
-                onChange={(e) => setBulkStatusTarget(e.target.value)}
-                className="bg-transparent text-white text-xs px-2 py-1 focus:outline-none"
-              >
-                <option value="" className="bg-slate-900">Alterar Opt-In...</option>
-                <option value="OPT_IN" className="bg-slate-900">Marcar como Permitiu (OPT-IN)</option>
-                <option value="OPT_OUT" className="bg-slate-900">Marcar como Bloqueado (OPT-OUT)</option>
-                <option value="PENDING" className="bg-slate-900">Marcar como Pendente</option>
-              </select>
+              <span className="text-[11px] font-semibold text-slate-400 px-1 flex items-center gap-1">
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" /> Classificar:
+              </span>
               <button
-                onClick={handleApplyBulkStatus}
-                disabled={!bulkStatusTarget}
-                className="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold transition-all"
+                onClick={() => handleApplyBulkDirectStatus('OPT_IN')}
+                className="px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 font-bold border border-emerald-500/30 flex items-center gap-1 transition-all"
+                title="Marcar todos os selecionados como Aceitou receber mensagens (OPT_IN)"
               >
-                Aplicar
+                <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                Aceitou (Opt-In)
+              </button>
+              <button
+                onClick={() => handleApplyBulkDirectStatus('OPT_OUT')}
+                className="px-2.5 py-1 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 font-bold border border-rose-500/30 flex items-center gap-1 transition-all"
+                title="Marcar todos os selecionados como Recusou receber mensagens (OPT_OUT)"
+              >
+                <UserX className="w-3 h-3 text-rose-400" />
+                Recusou (Opt-Out)
+              </button>
+              <button
+                onClick={() => handleApplyBulkDirectStatus('PENDING')}
+                className="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-bold border border-amber-500/30 flex items-center gap-1 transition-all"
+                title="Marcar todos os selecionados como Pendente de confirmação"
+              >
+                <Clock className="w-3 h-3 text-amber-400" />
+                Pendente
               </button>
             </div>
+
+            {/* Exportar Selecionados */}
+            <button
+              onClick={handleExportSelectedDirect}
+              className="px-3 py-1.5 rounded-xl bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 border border-sky-500/30 font-bold flex items-center gap-1.5 transition-all"
+              title="Exportar leads selecionados para arquivo CSV"
+            >
+              <Download className="w-3.5 h-3.5" />
+              Exportar Selecionados
+            </button>
 
             {/* Excluir em Massa */}
             <button
@@ -1090,6 +1326,491 @@ export default function LeadsManager({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════ */}
+      {/* MODAL: Importação em Massa com Classificação de Opt-In */}
+      {/* ══════════════════════════════════════════════════════ */}
+      {showImportModal && (
+        <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 z-50 overflow-y-auto">
+          <div className="p-6 rounded-3xl glass-panel border border-slate-700/60 w-full max-w-2xl space-y-5 my-8 shadow-2xl animate-fade-in">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+              <div>
+                <h3 className="font-bold text-white text-lg flex items-center gap-2.5">
+                  <Upload className="w-5 h-5 text-emerald-400" />
+                  Importar Contatos & Classificar Consentimento (Opt-In)
+                </h3>
+                <p className="text-xs text-slate-400 mt-1">
+                  Cadastre contatos em massa e defina se já autorizaram o recebimento de mensagens.
+                </p>
+              </div>
+              <button 
+                onClick={() => setShowImportModal(false)} 
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800/60 transition-all"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Abas: Arquivo vs Colar Lista */}
+            <div className="flex items-center gap-2 p-1 bg-slate-950 rounded-2xl border border-slate-800 text-xs">
+              <button
+                type="button"
+                onClick={() => setImportTab('file')}
+                className={`flex-1 py-2 px-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all ${
+                  importTab === 'file'
+                    ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <FileSpreadsheet className="w-4 h-4" />
+                Arquivo CSV / TXT
+              </button>
+              <button
+                type="button"
+                onClick={() => setImportTab('paste')}
+                className={`flex-1 py-2 px-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all ${
+                  importTab === 'paste'
+                    ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <FileText className="w-4 h-4" />
+                Colar Lista Diretamente
+              </button>
+            </div>
+
+            {/* Conteúdo Aba: Arquivo */}
+            {importTab === 'file' && (
+              <div className="space-y-2">
+                <div 
+                  onClick={() => fileInputRef.current?.click()}
+                  className="border-2 border-dashed border-slate-700/80 hover:border-emerald-500/60 rounded-2xl p-6 text-center cursor-pointer bg-slate-900/40 hover:bg-slate-900/70 transition-all group"
+                >
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    accept=".csv,.txt"
+                    onChange={handleImportFileInput}
+                    className="hidden"
+                  />
+                  <Upload className="w-8 h-8 text-emerald-400 mx-auto mb-2 group-hover:scale-110 transition-transform" />
+                  <p className="text-sm font-bold text-white">
+                    {importFileName ? `Arquivo selecionado: ${importFileName}` : 'Clique para selecionar seu arquivo CSV ou TXT'}
+                  </p>
+                  <p className="text-xs text-slate-400 mt-1">
+                    Detecta automaticamente colunas: <strong>Contato | Desde | Telefone | Etiquetas | Último Envio</strong> (Ação Rápida é ignorada).
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Conteúdo Aba: Colar Lista */}
+            {importTab === 'paste' && (
+              <div className="space-y-1.5 text-xs">
+                <div className="flex justify-between items-center">
+                  <label className="font-semibold text-slate-300">Cole a lista da sua planilha (com ou sem cabeçalhos):</label>
+                  <span className="text-[11px] text-purple-400 font-medium">Reconhece: Contato, Desde, Telefone, Etiquetas, Último Envio</span>
+                </div>
+                <textarea
+                  rows="4"
+                  value={importPastedText}
+                  onChange={(e) => handlePastedTextChange(e.target.value)}
+                  placeholder={"Contato\tDesde\tTelefone\tEtiquetas\tÚltimo Envio\tAção Rápida\nJoão Silva\t12/03/2024\t11999998888\tClientes VIP\t15/05/2024\tConversar\nMaria Santos\t01/01/2024\t21988887777\tNovos Leads\tNunca\tConversar"}
+                  className="w-full px-3.5 py-2.5 rounded-xl glass-input text-white font-mono text-xs resize-y"
+                ></textarea>
+              </div>
+            )}
+
+            {/* SEÇÃO PRINCIPAL: Classificação em Massa do Consentimento (Opt-In) */}
+            <div className="space-y-2 text-xs">
+              <label className="font-bold text-white flex items-center gap-1.5">
+                <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                Como classificar o consentimento desses contatos? (Classificação em Massa)
+              </label>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                {/* Opção OPT_IN */}
+                <div 
+                  onClick={() => handleConsentStatusSelect('OPT_IN')}
+                  className={`p-3.5 rounded-2xl border cursor-pointer transition-all flex flex-col justify-between ${
+                    importConsentStatus === 'OPT_IN'
+                      ? 'bg-emerald-500/15 border-emerald-500 shadow-md shadow-emerald-500/10'
+                      : 'bg-slate-900/60 border-slate-800 hover:border-slate-700'
+                  }`}
+                >
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="font-bold text-emerald-400 text-xs flex items-center gap-1.5">
+                        <CheckCircle2 className="w-4 h-4" /> Aceitou (OPT-IN)
+                      </span>
+                      {importConsentStatus === 'OPT_IN' && (
+                        <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-slate-300 leading-relaxed">
+                      Já autorizou envio. Fica liberado imediatamente para campanhas e fluxos sem pedir confirmação.
+                    </p>
+                  </div>
+                  <span className="mt-2 text-[10px] font-semibold text-emerald-300/80 bg-emerald-500/10 px-2 py-0.5 rounded-md inline-block self-start">
+                    Pronto para disparos
+                  </span>
+                </div>
+
+                {/* Opção PENDING */}
+                <div 
+                  onClick={() => handleConsentStatusSelect('PENDING')}
+                  className={`p-3.5 rounded-2xl border cursor-pointer transition-all flex flex-col justify-between ${
+                    importConsentStatus === 'PENDING'
+                      ? 'bg-amber-500/15 border-amber-500 shadow-md shadow-amber-500/10'
+                      : 'bg-slate-900/60 border-slate-800 hover:border-slate-700'
+                  }`}
+                >
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="font-bold text-amber-400 text-xs flex items-center gap-1.5">
+                        <Clock className="w-4 h-4" /> Pendente
+                      </span>
+                      {importConsentStatus === 'PENDING' && (
+                        <span className="w-2 h-2 rounded-full bg-amber-400"></span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-slate-300 leading-relaxed">
+                      Aguardando confirmação. Receberá mensagem automática de solicitação de Opt-In.
+                    </p>
+                  </div>
+                  <span className="mt-2 text-[10px] font-semibold text-amber-300/80 bg-amber-500/10 px-2 py-0.5 rounded-md inline-block self-start">
+                    Fluxo de validação
+                  </span>
+                </div>
+
+                {/* Opção OPT_OUT */}
+                <div 
+                  onClick={() => handleConsentStatusSelect('OPT_OUT')}
+                  className={`p-3.5 rounded-2xl border cursor-pointer transition-all flex flex-col justify-between ${
+                    importConsentStatus === 'OPT_OUT'
+                      ? 'bg-rose-500/15 border-rose-500 shadow-md shadow-rose-500/10'
+                      : 'bg-slate-900/60 border-slate-800 hover:border-slate-700'
+                  }`}
+                >
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="font-bold text-rose-400 text-xs flex items-center gap-1.5">
+                        <UserX className="w-4 h-4" /> Recusou (OPT-OUT)
+                      </span>
+                      {importConsentStatus === 'OPT_OUT' && (
+                        <span className="w-2 h-2 rounded-full bg-rose-400"></span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-slate-300 leading-relaxed">
+                      Não autorizou receber mensagens. O sistema bloqueia disparos automáticos para este número.
+                    </p>
+                  </div>
+                  <span className="mt-2 text-[10px] font-semibold text-rose-300/80 bg-rose-500/10 px-2 py-0.5 rounded-md inline-block self-start">
+                    Bloqueado de envios
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* SEÇÃO: Categoria & Opção de Sobrescrever */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+              {/* Seleção de Categoria */}
+              <div className="space-y-1.5">
+                <label className="font-semibold text-slate-300 flex items-center gap-1.5">
+                  <Tag className="w-3.5 h-3.5 text-purple-400" /> Categoria de Destino
+                </label>
+                <select
+                  value={isCustomCategory ? '__NEW__' : importCategory}
+                  onChange={(e) => {
+                    if (e.target.value === '__NEW__') {
+                      setIsCustomCategory(true);
+                    } else {
+                      handleCategorySelect(e.target.value);
+                    }
+                  }}
+                  className="w-full px-3.5 py-2.5 rounded-xl glass-input text-white bg-slate-900"
+                >
+                  {categories.map((c) => (
+                    <option key={c.id} value={c.name}>{c.name}</option>
+                  ))}
+                  <option value="__NEW__">+ Criar Nova Categoria...</option>
+                </select>
+
+                {isCustomCategory && (
+                  <input
+                    type="text"
+                    placeholder="Digite o nome da nova categoria..."
+                    value={customCategoryName}
+                    onChange={(e) => {
+                      setCustomCategoryName(e.target.value);
+                      setParsedImportLeads(prev => prev.map(l => ({ ...l, category: e.target.value })));
+                    }}
+                    className="w-full px-3.5 py-2 rounded-xl glass-input text-white mt-1.5"
+                    autoFocus
+                  />
+                )}
+              </div>
+
+              {/* Checkbox Sobrescrever Contatos Existentes */}
+              <div className="space-y-1.5">
+                <label className="font-semibold text-slate-300">Tratamento de Contatos Existentes</label>
+                <div 
+                  onClick={() => setImportUpdateExisting(!importUpdateExisting)}
+                  className="flex items-start gap-2.5 p-2.5 rounded-xl bg-slate-900/60 border border-slate-800 cursor-pointer hover:bg-slate-900 transition-colors"
+                >
+                  <input
+                    type="checkbox"
+                    checked={importUpdateExisting}
+                    onChange={(e) => setImportUpdateExisting(e.target.checked)}
+                    className="mt-0.5 rounded text-emerald-500 focus:ring-emerald-500 cursor-pointer"
+                  />
+                  <div className="text-[11px] text-slate-300 leading-tight">
+                    <strong className="text-white block">Atualizar contatos existentes</strong>
+                    Se o telefone já existir no sistema, atualizar seu status de Opt-In e categoria conforme configurado acima.
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* SEÇÃO: Pré-visualização dos Contatos Detectados */}
+            <div className="space-y-2 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="font-semibold text-slate-300 flex items-center gap-1.5">
+                  <Layers className="w-3.5 h-3.5 text-emerald-400" />
+                  Pré-visualização da Base:
+                </span>
+                <span className={`px-2.5 py-0.5 rounded-full font-bold text-[11px] ${
+                  parsedImportLeads.length > 0 
+                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                    : 'bg-slate-800 text-slate-400'
+                }`}>
+                  {parsedImportLeads.length} contatos válidos reconhecidos
+                </span>
+              </div>
+
+              {parsedImportLeads.length > 0 && parsedImportLeads.some(l => l.since || l.etiquetas || l.lastSent) && (
+                <div className="px-3 py-1.5 rounded-xl bg-purple-950/40 border border-purple-500/30 text-[11px] text-purple-200 flex items-center gap-1.5">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-purple-400 flex-shrink-0" />
+                  <span>
+                    Colunas detectadas: <strong>Contato</strong>, <strong>Desde</strong>, <strong>Telefone</strong>, <strong>Etiquetas</strong> e <strong>Último Envio</strong> (Ação Rápida descartada).
+                  </span>
+                </div>
+              )}
+
+              {parsedImportLeads.length === 0 ? (
+                <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800/80 text-center text-slate-500 text-xs">
+                  Faça upload de um arquivo ou cole linhas de texto acima para visualizar os contatos aqui.
+                </div>
+              ) : (
+                <div className="max-h-48 overflow-y-auto rounded-xl border border-slate-800 bg-slate-950/70 divide-y divide-slate-800/60">
+                  {parsedImportLeads.slice(0, 5).map((lead, idx) => (
+                    <div key={idx} className="p-2.5 flex flex-col md:flex-row md:items-center justify-between gap-2 text-xs">
+                      <div className="flex items-center gap-2.5">
+                        <span className="w-5 h-5 rounded-full bg-slate-800 text-slate-400 text-[10px] font-bold flex items-center justify-center flex-shrink-0">
+                          {idx + 1}
+                        </span>
+                        <div>
+                          <p className="font-bold text-white leading-tight flex items-center gap-2">
+                            {lead.name}
+                            {lead.etiquetas && (
+                              <span className="text-[10px] px-1.5 py-0.2 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30 font-normal">
+                                🏷️ {lead.etiquetas}
+                              </span>
+                            )}
+                          </p>
+                          <p className="text-[11px] font-mono text-slate-400">{lead.phone}</p>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2 text-[10px]">
+                        {lead.since && (
+                          <span className="px-2 py-0.5 rounded bg-slate-800/80 text-slate-300 font-medium">
+                            📅 Desde: {lead.since}
+                          </span>
+                        )}
+                        {lead.lastSent && lead.lastSent.toLowerCase() !== 'nunca' && lead.lastSent !== '-' && (
+                          <span className="px-2 py-0.5 rounded bg-slate-800/80 text-slate-300 font-medium">
+                            📤 Último: {lead.lastSent}
+                          </span>
+                        )}
+                        <span className={`px-2 py-0.5 rounded-md font-bold ${
+                          importConsentStatus === 'OPT_IN' 
+                            ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' 
+                            : importConsentStatus === 'OPT_OUT'
+                            ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                            : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                        }`}>
+                          {importConsentStatus === 'OPT_IN' ? 'Aceitou (Opt-In)' : importConsentStatus === 'OPT_OUT' ? 'Recusou (Opt-Out)' : 'Pendente'}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                  {parsedImportLeads.length > 5 && (
+                    <div className="p-2 text-center text-[11px] text-slate-400 bg-slate-900/40">
+                      + outros {parsedImportLeads.length - 5} contatos prontos para importar...
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setShowImportModal(false)}
+                className="px-4 py-2.5 rounded-xl bg-slate-900 text-slate-300 hover:bg-slate-800 font-semibold text-xs"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={parsedImportLeads.length === 0 || isImporting}
+                onClick={handleConfirmImportLeads}
+                className="px-6 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 font-bold text-xs shadow-lg shadow-emerald-500/20 flex items-center gap-2 transition-all"
+              >
+                {isImporting ? (
+                  <span>Importando...</span>
+                ) : (
+                  <>
+                    <Upload className="w-4 h-4" />
+                    <span>Confirmar & Cadastrar {parsedImportLeads.length} Contatos</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════ */}
+      {/* MODAL: Exportação em Massa (CSV / Planilha Excel)      */}
+      {/* ══════════════════════════════════════════════════════ */}
+      {showExportModal && (
+        <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 z-50">
+          <div className="p-6 rounded-3xl glass-panel border border-slate-700/60 w-full max-w-md space-y-5 shadow-2xl animate-fade-in">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 className="font-bold text-white text-base flex items-center gap-2">
+                <Download className="w-5 h-5 text-sky-400" />
+                Exportar Contatos (CSV / Excel)
+              </h3>
+              <button onClick={() => setShowExportModal(false)} className="text-slate-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-300">
+              Escolha quais contatos você deseja exportar para planilha:
+            </p>
+
+            {/* Escopos de Exportação */}
+            <div className="space-y-2.5 text-xs">
+              {/* Opção: Todos */}
+              <label 
+                className={`p-3 rounded-2xl border flex items-center gap-3 cursor-pointer transition-all ${
+                  exportScope === 'all' 
+                    ? 'bg-sky-500/15 border-sky-500 text-white font-bold' 
+                    : 'bg-slate-900/60 border-slate-800 text-slate-300 hover:bg-slate-900'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="exportScope"
+                  value="all"
+                  checked={exportScope === 'all'}
+                  onChange={() => setExportScope('all')}
+                  className="text-sky-500 focus:ring-sky-500"
+                />
+                <div className="flex-1">
+                  <p className="leading-tight">Todos os Leads Cadastrados</p>
+                  <p className="text-[11px] font-normal text-slate-400">Total de {leads.length} contatos no sistema</p>
+                </div>
+              </label>
+
+              {/* Opção: Filtrados */}
+              <label 
+                className={`p-3 rounded-2xl border flex items-center gap-3 cursor-pointer transition-all ${
+                  exportScope === 'filtered' 
+                    ? 'bg-sky-500/15 border-sky-500 text-white font-bold' 
+                    : 'bg-slate-900/60 border-slate-800 text-slate-300 hover:bg-slate-900'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="exportScope"
+                  value="filtered"
+                  checked={exportScope === 'filtered'}
+                  onChange={() => setExportScope('filtered')}
+                  className="text-sky-500 focus:ring-sky-500"
+                />
+                <div className="flex-1">
+                  <p className="leading-tight">Apenas Leads Filtrados na Tela</p>
+                  <p className="text-[11px] font-normal text-slate-400">
+                    {filteredLeads.length} contatos (Filtros: {selectedCategory !== 'TODOS' ? selectedCategory : 'Todas Cat.'} / {selectedStatus !== 'TODOS' ? selectedStatus : 'Todos Status'})
+                  </p>
+                </div>
+              </label>
+
+              {/* Opção: Selecionados por Checkbox */}
+              <label 
+                className={`p-3 rounded-2xl border flex items-center gap-3 transition-all ${
+                  selectedLeadIds.length === 0
+                    ? 'opacity-40 cursor-not-allowed bg-slate-900/40 border-slate-800 text-slate-500'
+                    : exportScope === 'selected'
+                    ? 'bg-sky-500/15 border-sky-500 text-white font-bold cursor-pointer'
+                    : 'bg-slate-900/60 border-slate-800 text-slate-300 hover:bg-slate-900 cursor-pointer'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="exportScope"
+                  value="selected"
+                  disabled={selectedLeadIds.length === 0}
+                  checked={exportScope === 'selected'}
+                  onChange={() => setExportScope('selected')}
+                  className="text-sky-500 focus:ring-sky-500"
+                />
+                <div className="flex-1">
+                  <p className="leading-tight">Apenas Leads Marcados com Checkbox</p>
+                  <p className="text-[11px] font-normal text-slate-400">
+                    {selectedLeadIds.length} {selectedLeadIds.length === 1 ? 'lead selecionado' : 'leads selecionados'}
+                  </p>
+                </div>
+              </label>
+            </div>
+
+            {/* Informações de Compatibilidade */}
+            <div className="p-3 rounded-xl bg-slate-950 border border-slate-800/80 text-[11px] text-slate-400 space-y-1">
+              <p className="font-semibold text-slate-300 flex items-center gap-1">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> Compatibilidade Total com Excel & Planilhas
+              </p>
+              <p>
+                Exporta colunas de <strong>ID, Nome, Telefone, Categoria, Status de Consentimento (Opt-In), Origem, Envios e Data</strong> com codificação UTF-8 e acentuação perfeita.
+              </p>
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setShowExportModal(false)}
+                className="px-4 py-2 rounded-xl bg-slate-900 text-slate-300 hover:bg-slate-800 font-semibold text-xs"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleExecuteExport}
+                className="px-5 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-xs shadow-lg shadow-sky-500/20 flex items-center gap-1.5 transition-all"
+              >
+                <Download className="w-4 h-4" />
+                Baixar Arquivo CSV
+              </button>
+            </div>
           </div>
         </div>
       )}

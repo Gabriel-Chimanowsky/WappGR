@@ -141,15 +141,43 @@ export default function App() {
     }
   };
 
-  const handleImportLeads = async (leadsData) => {
+  const handleImportLeads = async (payload) => {
     try {
-      const result = await api('/api/v1/leads/import', { method: 'POST', body: JSON.stringify({ leads: leadsData }) });
-      showToast(`Importação: ${result.imported} novos, ${result.skipped} ignorados.`);
+      const body = Array.isArray(payload) ? { leads: payload } : payload;
+      const result = await api('/api/v1/leads/import', { method: 'POST', body: JSON.stringify(body) });
+      let msg = `Importação concluída: ${result.imported || 0} novos adicionados`;
+      if (result.updated) msg += `, ${result.updated} atualizados`;
+      if (result.skipped) msg += `, ${result.skipped} ignorados`;
+      showToast(msg);
       fetchAllData();
       return result;
     } catch (err) {
       showToast(err.message, 'error');
       return null;
+    }
+  };
+
+  const handleExportLeads = async (options = {}) => {
+    try {
+      const { leadIds, category, status, search } = options;
+      const res = await fetch('/api/v1/leads/export', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leadIds, category, status, search })
+      });
+      if (!res.ok) throw new Error('Falha ao exportar contatos.');
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `leads_wappgr_${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      showToast('Download do arquivo CSV de leads iniciado!', 'info');
+    } catch (err) {
+      showToast(err.message, 'error');
     }
   };
 
@@ -419,6 +447,7 @@ export default function App() {
               onBulkUpdateLeads={handleBulkUpdateLeads}
               onBulkDeleteLeads={handleBulkDeleteLeads}
               onImportLeads={handleImportLeads}
+              onExportLeads={handleExportLeads}
               showToast={showToast}
             />
           )}
