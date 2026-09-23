@@ -67,6 +67,15 @@ export default function Dashboard({ stats, setActiveTab, onOpenSimulateModal }) 
 
         <div className="flex flex-wrap gap-3 z-10">
           <button
+            onClick={() => setActiveTab('leads')}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs border border-slate-700 hover:border-emerald-500/40 transition-all shadow-md"
+            title="Abrir Gestão de Leads e Categorias"
+          >
+            <Users className="w-4 h-4 text-emerald-400" />
+            Gestão de Leads ({stats?.totalLeads || 0})
+          </button>
+
+          <button
             onClick={() => setActiveTab('broadcast')}
             className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs shadow-lg shadow-emerald-500/20 transition-all"
           >
@@ -87,26 +96,34 @@ export default function Dashboard({ stats, setActiveTab, onOpenSimulateModal }) 
       {/* Grid de Cards Métricos */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         {/* Total Leads */}
-        <div className="p-5 rounded-2xl glass-card border border-slate-800 flex flex-col justify-between">
+        <div 
+          onClick={() => setActiveTab('leads')}
+          className="p-5 rounded-2xl glass-card border border-slate-800 flex flex-col justify-between cursor-pointer hover:border-emerald-500/50 hover:bg-slate-900/60 transition-all group"
+          title="Clique para ir para a Gestão de Leads"
+        >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-400">Total de Leads</span>
-            <div className="p-2 rounded-xl bg-blue-500/10 text-blue-400">
+            <span className="text-xs font-medium text-slate-400 group-hover:text-white transition-colors">Total de Leads</span>
+            <div className="p-2 rounded-xl bg-blue-500/10 text-blue-400 group-hover:scale-110 transition-transform">
               <Users className="w-4 h-4" />
             </div>
           </div>
           <div className="mt-4">
             <p className="text-2xl font-bold text-white">{stats?.totalLeads || 0}</p>
             <p className="text-[11px] text-slate-400 mt-1 flex items-center gap-1">
-              <TrendingUp className="w-3 h-3 text-emerald-400" /> Base de contatos ativa
+              <TrendingUp className="w-3 h-3 text-emerald-400" /> Base de contatos ativa (Ver leads &rarr;)
             </p>
           </div>
         </div>
 
         {/* Permitiu Opt-in */}
-        <div className="p-5 rounded-2xl glass-card border border-emerald-500/30 bg-emerald-500/5 flex flex-col justify-between">
+        <div 
+          onClick={() => setActiveTab('leads')}
+          className="p-5 rounded-2xl glass-card border border-emerald-500/30 bg-emerald-500/5 flex flex-col justify-between cursor-pointer hover:border-emerald-500/60 transition-all group"
+          title="Clique para ver os leads com Opt-in confirmado"
+        >
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-emerald-300">Opt-in Confirmado</span>
-            <div className="p-2 rounded-xl bg-emerald-500/20 text-emerald-400">
+            <div className="p-2 rounded-xl bg-emerald-500/20 text-emerald-400 group-hover:scale-110 transition-transform">
               <ShieldCheck className="w-4 h-4" />
             </div>
           </div>
@@ -119,10 +136,14 @@ export default function Dashboard({ stats, setActiveTab, onOpenSimulateModal }) 
         </div>
 
         {/* Opt-out / Bloqueou */}
-        <div className="p-5 rounded-2xl glass-card border border-rose-500/30 bg-rose-500/5 flex flex-col justify-between">
+        <div 
+          onClick={() => setActiveTab('leads')}
+          className="p-5 rounded-2xl glass-card border border-rose-500/30 bg-rose-500/5 flex flex-col justify-between cursor-pointer hover:border-rose-500/60 transition-all group"
+          title="Clique para ver os leads bloqueados/opt-out"
+        >
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-rose-300">Opt-out / Bloqueou</span>
-            <div className="p-2 rounded-xl bg-rose-500/20 text-rose-400">
+            <div className="p-2 rounded-xl bg-rose-500/20 text-rose-400 group-hover:scale-110 transition-transform">
               <UserX className="w-4 h-4" />
             </div>
           </div>
