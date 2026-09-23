@@ -300,7 +300,9 @@ app.get('/api/v1/leads', (req, res) => {
 
   const whereClause = where.length > 0 ? 'WHERE ' + where.join(' AND ') : '';
   const pageNum = parseInt(page) || 1;
-  const limitNum = Math.min(parseInt(limit) || 100, 500);
+  const limitNum = (limit === 'all' || limit === '0' || parseInt(limit) === 0) 
+    ? 100000 
+    : Math.min(parseInt(limit) || 10000, 100000);
   const offset = (pageNum - 1) * limitNum;
 
   const countSql = `SELECT COUNT(*) as total FROM leads l LEFT JOIN categories c ON l.category_id = c.id ${whereClause}`;
@@ -580,7 +582,8 @@ app.post('/api/v1/leads/import', (req, res) => {
     leads: leadsData, 
     defaultCategory, 
     defaultStatus = 'OPT_IN', 
-    updateExisting = false 
+    updateExisting = false,
+    useSpreadsheetCategories = false
   } = req.body;
 
   if (!Array.isArray(leadsData)) {
@@ -612,18 +615,23 @@ app.post('/api/v1/leads/import', (req, res) => {
   const catCache = new Map();
   const getOrCreateCategoryId = (catName) => {
     if (!catName) return null;
-    if (catCache.has(catName)) return catCache.get(catName);
+    const clean = String(catName).trim();
+    if (!clean || clean.length > 40) return null;
+    // Ignorar se for data (ex: 12/03/2024), hora, número puro ou link
+    if (/^\d{1,2}\/\d{1,2}/.test(clean) || /^\d+$/.test(clean) || clean.includes('http') || clean.length < 2) return null;
 
-    let cat = d.prepare('SELECT id FROM categories WHERE name = ?').get(catName);
+    if (catCache.has(clean.toLowerCase())) return catCache.get(clean.toLowerCase());
+
+    let cat = d.prepare('SELECT id FROM categories WHERE LOWER(name) = LOWER(?)').get(clean);
     if (!cat) {
       const newId = generateId();
       d.prepare('INSERT INTO categories (id, name, color, description) VALUES (?, ?, ?, ?)').run(
-        newId, catName, '#10b981', 'Criada automaticamente via importação'
+        newId, clean, '#10b981', 'Criada automaticamente via importação'
       );
-      catCache.set(catName, newId);
+      catCache.set(clean.toLowerCase(), newId);
       return newId;
     }
-    catCache.set(catName, cat.id);
+    catCache.set(clean.toLowerCase(), cat.id);
     return cat.id;
   };
 
@@ -649,7 +657,11 @@ app.post('/api/v1/leads/import', (req, res) => {
         consentTimestamp = new Date().toISOString();
       }
 
-      let catId = item.category ? getOrCreateCategoryId(item.category) : defaultCatId;
+      let catId = defaultCatId;
+      if (useSpreadsheetCategories && item.category) {
+        const found = getOrCreateCategoryId(item.category);
+        if (found) catId = found;
+      }
       const createdAt = normalizeDate(item.created_at || item.since);
       const lastInteraction = normalizeDate(item.last_interaction || item.lastSent);
 
@@ -855,6 +867,50 @@ app.delete('/api/v1/categories/:id', (req, res) => {
   d.prepare('DELETE FROM categories WHERE id = ?').run(req.params.id);
   res.json({ success: true });
 });
+
+// Excluir múltiplas categorias em massa
+app.post('/api/v1/categories/bulk-delete', (req, res) => {
+  const { ids, reassignTo = null } = req.body;
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return res.status(400).json({ error: 'IDs array required' });
+  }
+  const d = getDb();
+  const placeholders = ids.map(() => '?').join(',');
+  d.transaction(() => {
+    if (reassignTo) {
+      d.prepare(`UPDATE leads SET category_id = ? WHERE category_id IN (${placeholders})`).run(reassignTo, ...ids);
+    } else {
+      d.prepare(`UPDATE leads SET category_id = NULL WHERE category_id IN (${placeholders})`).run(...ids);
+    }
+    d.prepare(`DELETE FROM categories WHERE id IN (${placeholders})`).run(...ids);
+  })();
+  res.json({ success: true, count: ids.length });
+});
+
+// Limpar todas as categorias vazias (com 0 leads)
+app.post('/api/v1/categories/cleanup-empty', (req, res) => {
+  const d = getDb();
+  const emptyCats = d.prepare(`
+    SELECT c.id, c.name 
+    FROM categories c 
+    LEFT JOIN leads l ON l.category_id = c.id 
+    GROUP BY c.id 
+    HAVING COUNT(l.id) = 0
+  `).all();
+
+  if (emptyCats.length > 0) {
+    const ids = emptyCats.map(c => c.id);
+    const placeholders = ids.map(() => '?').join(',');
+    d.prepare(`DELETE FROM categories WHERE id IN (${placeholders})`).run(...ids);
+  }
+
+  res.json({ 
+    success: true, 
+    deletedCount: emptyCats.length, 
+    deletedNames: emptyCats.map(c => c.name) 
+  });
+});
+
 
 // ════════════════════════════════════════════════════════
 // 4. OPT-IN ENGINE

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { 
   Users, 
   Search, 
@@ -25,12 +25,16 @@ import {
   CheckCircle2,
   HelpCircle,
   ArrowRight,
-  FileSpreadsheet
+  FileSpreadsheet,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight
 } from 'lucide-react';
 
 // Helper: Parser flexível de leads a partir de texto (CSV, TSV, TXT ou colado de planilha)
 // Mapeia nativamente: Contato | Desde | Telefone | Etiquetas | Último Envio (ignora Ação Rápida)
-function parseLeadsInput(text, defaultCategory, defaultStatus) {
+function parseLeadsInput(text, defaultCategory, defaultStatus, useSpreadsheetCategories = false) {
   if (!text || !text.trim()) return [];
 
   const rawLines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
@@ -104,9 +108,17 @@ function parseLeadsInput(text, defaultCategory, defaultStatus) {
       name = nameIdx !== -1 ? cols[nameIdx] : '';
       if (catIdx !== -1 && cols[catIdx]) {
         etiquetas = cols[catIdx];
-        // Se houver múltiplas etiquetas separadas por vírgula, a primeira é usada como categoria principal
-        const firstTag = etiquetas.split(/[,;|]/).map(t => t.trim()).filter(Boolean)[0];
-        category = firstTag || defaultCategory;
+        if (useSpreadsheetCategories) {
+          const firstTag = etiquetas.split(/[,;|]/).map(t => t.trim()).filter(Boolean)[0];
+          // Evita tags inválidas como datas, URLs ou números puros
+          if (firstTag && firstTag.length <= 40 && !/^\d{1,2}\/\d{1,2}/.test(firstTag) && !/^\d+$/.test(firstTag) && !firstTag.includes('http')) {
+            category = firstTag;
+          } else {
+            category = defaultCategory;
+          }
+        } else {
+          category = defaultCategory;
+        }
       }
       if (sinceIdx !== -1 && cols[sinceIdx]) {
         since = cols[sinceIdx];
@@ -136,12 +148,12 @@ function parseLeadsInput(text, defaultCategory, defaultStatus) {
         if (digits0.length >= 8) {
           phone = cols[0];
           name = cols[1];
-          category = cols[2] || defaultCategory;
+          category = useSpreadsheetCategories ? (cols[2] || defaultCategory) : defaultCategory;
           notes = cols.slice(3).join(' ');
         } else {
           name = cols[0];
           phone = cols[1];
-          category = cols[2] || defaultCategory;
+          category = useSpreadsheetCategories ? (cols[2] || defaultCategory) : defaultCategory;
           notes = cols.slice(3).join(' ');
         }
       }
@@ -188,6 +200,8 @@ export default function LeadsManager({
   onAddCategory,
   onUpdateCategory,
   onDeleteCategory,
+  onCleanupEmptyCategories,
+  onBulkDeleteCategories,
   onBulkUpdateLeads,
   onBulkDeleteLeads,
   onImportLeads,
@@ -213,12 +227,22 @@ export default function LeadsManager({
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
 
+  // Estados para Gerenciamento e Limpeza de Categorias
+  const [catSearchQuery, setCatSearchQuery] = useState('');
+  const [selectedCatIds, setSelectedCatIds] = useState([]);
+  const [isCleaningCats, setIsCleaningCats] = useState(false);
+
+  // Estados para Paginação de Leads
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(100); // 50, 100, 250, 500, 1000, 'all'
+
   // NOVO: Estados para Importação em Massa com Classificação
   const [showImportModal, setShowImportModal] = useState(false);
   const [importTab, setImportTab] = useState('file'); // 'file' | 'paste'
   const [importPastedText, setImportPastedText] = useState('');
   const [importConsentStatus, setImportConsentStatus] = useState('OPT_IN'); // 'OPT_IN' | 'PENDING' | 'OPT_OUT'
   const [importCategory, setImportCategory] = useState(categories[0]?.name || 'Leads Orgânicos');
+  const [useSpreadsheetCategories, setUseSpreadsheetCategories] = useState(false);
   const [isCustomCategory, setIsCustomCategory] = useState(false);
   const [customCategoryName, setCustomCategoryName] = useState('');
   const [importUpdateExisting, setImportUpdateExisting] = useState(true);
@@ -245,20 +269,43 @@ export default function LeadsManager({
     description: ''
   });
 
+  // Categorias vazias (sem nenhum lead vinculado)
+  const emptyCategories = useMemo(() => {
+    return categories.filter(c => (c.count || 0) === 0);
+  }, [categories]);
+
   // Filter logic (category_name from SQLite join)
-  const filteredLeads = leads.filter(lead => {
-    const catName = lead.category_name || lead.category || '';
-    if (selectedCategory !== 'TODOS' && catName !== selectedCategory) return false;
-    if (selectedStatus !== 'TODOS' && lead.status !== selectedStatus) return false;
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase();
-      const matchName = (lead.name || '').toLowerCase().includes(q);
-      const matchPhone = (lead.phone || '').includes(q);
-      const matchNotes = (lead.notes || '').toLowerCase().includes(q);
-      return matchName || matchPhone || matchNotes;
-    }
-    return true;
-  });
+  const filteredLeads = useMemo(() => {
+    return leads.filter(lead => {
+      const catName = lead.category_name || lead.category || '';
+      if (selectedCategory !== 'TODOS' && catName !== selectedCategory) return false;
+      if (selectedStatus !== 'TODOS' && lead.status !== selectedStatus) return false;
+      if (searchQuery) {
+        const q = searchQuery.toLowerCase();
+        const matchName = (lead.name || '').toLowerCase().includes(q);
+        const matchPhone = (lead.phone || '').includes(q);
+        const matchNotes = (lead.notes || '').toLowerCase().includes(q);
+        return matchName || matchPhone || matchNotes;
+      }
+      return true;
+    });
+  }, [leads, selectedCategory, selectedStatus, searchQuery]);
+
+  // Resetar página atual quando filtros ou tamanho de página mudarem
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, selectedCategory, selectedStatus, pageSize]);
+
+  // Cálculos de Paginação
+  const totalFiltered = filteredLeads.length;
+  const effectivePageSize = pageSize === 'all' ? Math.max(1, totalFiltered) : Number(pageSize);
+  const totalPages = Math.max(1, Math.ceil(totalFiltered / effectivePageSize));
+
+  const paginatedLeads = useMemo(() => {
+    if (pageSize === 'all') return filteredLeads;
+    const start = (currentPage - 1) * effectivePageSize;
+    return filteredLeads.slice(start, start + effectivePageSize);
+  }, [filteredLeads, currentPage, effectivePageSize, pageSize]);
 
   // Checkbox handlers
   const handleToggleSelectLead = (id) => {
@@ -348,7 +395,7 @@ export default function LeadsManager({
       try {
         const text = evt.target.result;
         const targetCategory = isCustomCategory && customCategoryName.trim() ? customCategoryName.trim() : importCategory;
-        const parsed = parseLeadsInput(text, targetCategory, importConsentStatus);
+        const parsed = parseLeadsInput(text, targetCategory, importConsentStatus, useSpreadsheetCategories);
         setParsedImportLeads(parsed);
         if (parsed.length === 0) {
           showToast('Nenhum número de telefone válido encontrado no arquivo.', 'warning');
@@ -367,7 +414,7 @@ export default function LeadsManager({
   const handlePastedTextChange = (text) => {
     setImportPastedText(text);
     const targetCategory = isCustomCategory && customCategoryName.trim() ? customCategoryName.trim() : importCategory;
-    const parsed = parseLeadsInput(text, targetCategory, importConsentStatus);
+    const parsed = parseLeadsInput(text, targetCategory, importConsentStatus, useSpreadsheetCategories);
     setParsedImportLeads(parsed);
   };
 
@@ -381,7 +428,25 @@ export default function LeadsManager({
   const handleCategorySelect = (catName) => {
     setImportCategory(catName);
     setIsCustomCategory(false);
-    setParsedImportLeads(prev => prev.map(l => ({ ...l, category: catName })));
+    if (!useSpreadsheetCategories) {
+      setParsedImportLeads(prev => prev.map(l => ({ ...l, category: catName })));
+    }
+  };
+
+  // Alternar regra de categoria na importação
+  const handleToggleSpreadsheetCategories = (useTags) => {
+    setUseSpreadsheetCategories(useTags);
+    const targetCategory = isCustomCategory && customCategoryName.trim() ? customCategoryName.trim() : importCategory;
+    if (!useTags) {
+      // Forçar todos à categoria padrão
+      setParsedImportLeads(prev => prev.map(l => ({ ...l, category: targetCategory })));
+    } else {
+      // Reprocessar para extrair tags da coluna Etiquetas se houver texto colado
+      if (importPastedText) {
+        const parsed = parseLeadsInput(importPastedText, targetCategory, importConsentStatus, true);
+        setParsedImportLeads(parsed);
+      }
+    }
   };
 
   // Submissão da Importação em Massa
@@ -394,7 +459,7 @@ export default function LeadsManager({
     const finalCat = isCustomCategory && customCategoryName.trim() ? customCategoryName.trim() : importCategory;
     const payloadLeads = parsedImportLeads.map(l => ({
       ...l,
-      category: l.category || finalCat,
+      category: useSpreadsheetCategories ? (l.category || finalCat) : finalCat,
       status: importConsentStatus
     }));
 
@@ -404,7 +469,8 @@ export default function LeadsManager({
         leads: payloadLeads,
         defaultCategory: finalCat,
         defaultStatus: importConsentStatus,
-        updateExisting: importUpdateExisting
+        updateExisting: importUpdateExisting,
+        useSpreadsheetCategories: useSpreadsheetCategories
       });
       setShowImportModal(false);
       setParsedImportLeads([]);
@@ -414,6 +480,47 @@ export default function LeadsManager({
       showToast('Erro na importação: ' + err.message, 'error');
     } finally {
       setIsImporting(false);
+    }
+  };
+
+  // Limpeza de categorias vazias (0 leads)
+  const handleCleanupEmptyCats = async () => {
+    if (emptyCategories.length === 0) {
+      showToast('Não há categorias vazias para limpar.', 'info');
+      return;
+    }
+    if (!confirm(`Deseja remover todas as ${emptyCategories.length} categorias vazias (sem leads vinculados)?`)) {
+      return;
+    }
+    setIsCleaningCats(true);
+    try {
+      if (onCleanupEmptyCategories) {
+        await onCleanupEmptyCategories();
+      }
+      setSelectedCatIds([]);
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      setIsCleaningCats(false);
+    }
+  };
+
+  // Excluir categorias selecionadas em massa
+  const handleBulkDeleteCats = async () => {
+    if (selectedCatIds.length === 0) return;
+    if (!confirm(`Deseja excluir ${selectedCatIds.length} categoria(s) selecionada(s)? Os leads dessas categorias permanecerão cadastrados como "Sem Categoria".`)) {
+      return;
+    }
+    setIsCleaningCats(true);
+    try {
+      if (onBulkDeleteCategories) {
+        await onBulkDeleteCategories(selectedCatIds);
+      }
+      setSelectedCatIds([]);
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      setIsCleaningCats(false);
     }
   };
 
@@ -525,6 +632,7 @@ export default function LeadsManager({
           >
             <Plus className="w-4 h-4" />
             Adicionar Lead
+          </button>
         </div>
       </div>
 
@@ -540,6 +648,17 @@ export default function LeadsManager({
         >
           Todas Categorias ({leads.length})
         </button>
+
+        {emptyCategories.length > 0 && (
+          <button
+            onClick={() => setShowManageCatsModal(true)}
+            className="px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all flex-shrink-0 flex items-center gap-1.5 bg-amber-500/15 border border-amber-500/30 text-amber-300 hover:bg-amber-500/25 shadow-sm"
+            title="Clique para gerenciar ou excluir categorias vazias"
+          >
+            <AlertCircle className="w-3.5 h-3.5 text-amber-400" />
+            <span>{emptyCategories.length} vazias (Limpar)</span>
+          </button>
+        )}
 
         {categories.map((cat) => (
           <button
@@ -726,7 +845,7 @@ export default function LeadsManager({
                   </td>
                 </tr>
               ) : (
-                filteredLeads.map((lead) => {
+                paginatedLeads.map((lead) => {
                   const isChecked = selectedLeadIds.includes(lead.id);
                   const consentMethod = lead.consent_method || lead.consentMethod;
                   const consentTimestamp = lead.consent_timestamp || lead.consentTimestamp;
@@ -868,60 +987,239 @@ export default function LeadsManager({
             </tbody>
           </table>
         </div>
+
+        {/* Barra de Paginação & Navegação dos Leads */}
+        <div className="p-4 bg-slate-900/60 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs">
+          {/* Info de exibição */}
+          <div className="flex items-center gap-3 text-slate-400">
+            <span>
+              Mostrando <strong className="text-white">{totalFiltered === 0 ? 0 : (currentPage - 1) * effectivePageSize + 1}</strong> a <strong className="text-white">{Math.min(currentPage * effectivePageSize, totalFiltered)}</strong> de <strong className="text-emerald-400 font-bold">{totalFiltered}</strong> contatos
+              {totalFiltered !== leads.length && (
+                <span className="text-slate-500 text-[11px] ml-1.5">
+                  (filtrados de {leads.length} no total)
+                </span>
+              )}
+            </span>
+          </div>
+
+          {/* Controles de Navegação */}
+          <div className="flex items-center gap-3">
+            {/* Seletor de Registros por Página */}
+            <div className="flex items-center gap-2">
+              <span className="text-slate-400">Exibir:</span>
+              <select
+                value={pageSize}
+                onChange={(e) => setPageSize(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+                className="bg-slate-950 text-white rounded-lg border border-slate-800 px-2.5 py-1 text-xs focus:outline-none focus:border-emerald-500 font-semibold"
+              >
+                <option value={50}>50 por página</option>
+                <option value={100}>100 por página</option>
+                <option value={250}>250 por página</option>
+                <option value={500}>500 por página</option>
+                <option value={1000}>1.000 por página</option>
+                <option value="all">Ver Todos ({totalFiltered})</option>
+              </select>
+            </div>
+
+            {/* Botões de Página */}
+            {pageSize !== 'all' && totalPages > 1 && (
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setCurrentPage(1)}
+                  disabled={currentPage === 1}
+                  className="p-1.5 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
+                  title="Primeira Página"
+                >
+                  <ChevronsLeft className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  className="p-1.5 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
+                  title="Página Anterior"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+
+                <span className="px-3 py-1 bg-slate-950 border border-slate-800 rounded-lg text-slate-300 text-xs font-mono">
+                  Pág. <strong className="text-white">{currentPage}</strong> / <strong className="text-slate-400">{totalPages}</strong>
+                </span>
+
+                <button
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                  className="p-1.5 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
+                  title="Próxima Página"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setCurrentPage(totalPages)}
+                  disabled={currentPage === totalPages}
+                  className="p-1.5 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
+                  title="Última Página"
+                >
+                  <ChevronsRight className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
-      {/* Modal Gerenciar / Editar Categorias */}
+      {/* Modal Gerenciar & Limpar Categorias */}
       {showManageCatsModal && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="p-6 rounded-2xl glass-panel border border-slate-800 w-full max-w-lg space-y-5">
+        <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="p-6 rounded-3xl glass-panel border border-slate-700/60 w-full max-w-xl space-y-4 shadow-2xl animate-fade-in">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h3 className="font-bold text-white text-base flex items-center gap-2">
-                <FolderEdit className="w-5 h-5 text-purple-400" />
-                Gerenciamento de Categorias & Tags
-              </h3>
-              <button onClick={() => setShowManageCatsModal(false)} className="text-slate-400 hover:text-white">
+              <div>
+                <h3 className="font-bold text-white text-base flex items-center gap-2">
+                  <FolderEdit className="w-5 h-5 text-purple-400" />
+                  Gerenciamento & Limpeza de Categorias
+                </h3>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  {categories.length} categoria(s) cadastrada(s) • {emptyCategories.length} vazia(s) sem nenhum lead
+                </p>
+              </div>
+              <button onClick={() => setShowManageCatsModal(false)} className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800/60 transition-colors">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
-              {categories.map((cat) => (
-                <div key={cat.id} className="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800 flex items-center justify-between gap-3 text-xs">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <span className="w-3.5 h-3.5 rounded-full flex-shrink-0" style={{ backgroundColor: cat.color }}></span>
-                    <div className="min-w-0">
-                      <p className="font-bold text-white truncate">{cat.name}</p>
-                      {cat.description && <p className="text-[10px] text-slate-400 truncate">{cat.description}</p>}
+            {/* Barra de Ações Rápidas de Limpeza */}
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              {emptyCategories.length > 0 && (
+                <button
+                  onClick={handleCleanupEmptyCats}
+                  disabled={isCleaningCats}
+                  className="px-3.5 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 font-bold flex items-center gap-2 transition-all shadow-sm"
+                  title="Remove em 1 clique todas as categorias que possuem 0 leads vinculados"
+                >
+                  <Trash2 className="w-3.5 h-3.5 text-amber-400" />
+                  {isCleaningCats ? 'Limpando...' : `Limpar ${emptyCategories.length} Categorias Vazias`}
+                </button>
+              )}
+
+              {selectedCatIds.length > 0 && (
+                <button
+                  onClick={handleBulkDeleteCats}
+                  disabled={isCleaningCats}
+                  className="px-3.5 py-2 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 font-bold flex items-center gap-2 transition-all shadow-sm"
+                >
+                  <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+                  Excluir {selectedCatIds.length} Selecionada(s)
+                </button>
+              )}
+
+              {emptyCategories.length > 0 && selectedCatIds.length !== emptyCategories.length && (
+                <button
+                  onClick={() => setSelectedCatIds(emptyCategories.map(c => c.id))}
+                  className="px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:text-white font-medium transition-all"
+                >
+                  Marcar todas vazias
+                </button>
+              )}
+
+              {selectedCatIds.length > 0 && (
+                <button
+                  onClick={() => setSelectedCatIds([])}
+                  className="text-xs text-slate-400 hover:text-slate-200 underline ml-auto"
+                >
+                  Desmarcar ({selectedCatIds.length})
+                </button>
+              )}
+            </div>
+
+            {/* Busca de Categorias */}
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={catSearchQuery}
+                onChange={(e) => setCatSearchQuery(e.target.value)}
+                placeholder="Filtrar categorias por nome..."
+                className="w-full pl-9 pr-3 py-2 rounded-xl glass-input text-xs text-white"
+              />
+            </div>
+
+            {/* Lista de Categorias com Rolagem */}
+            <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
+              {categories
+                .filter(c => !catSearchQuery || c.name.toLowerCase().includes(catSearchQuery.toLowerCase()))
+                .map((cat) => {
+                  const isEmpty = (cat.count || 0) === 0;
+                  const isChecked = selectedCatIds.includes(cat.id);
+
+                  return (
+                    <div 
+                      key={cat.id} 
+                      className={`p-3 rounded-xl border flex items-center justify-between gap-3 text-xs transition-all ${
+                        isChecked 
+                          ? 'bg-purple-950/30 border-purple-500/50' 
+                          : isEmpty 
+                          ? 'bg-slate-900/60 border-slate-800/80 hover:border-slate-700' 
+                          : 'bg-slate-900/80 border-slate-800 hover:border-slate-700'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        {/* Checkbox para seleção em massa */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedCatIds(prev => 
+                              prev.includes(cat.id) ? prev.filter(id => id !== cat.id) : [...prev, cat.id]
+                            );
+                          }}
+                          className="text-slate-400 hover:text-white flex-shrink-0"
+                        >
+                          {isChecked ? (
+                            <CheckSquare className="w-4 h-4 text-purple-400" />
+                          ) : (
+                            <Square className="w-4 h-4" />
+                          )}
+                        </button>
+
+                        <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: cat.color }}></span>
+                        <div className="min-w-0">
+                          <p className="font-bold text-white truncate">{cat.name}</p>
+                          {cat.description && <p className="text-[10px] text-slate-400 truncate">{cat.description}</p>}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        {isEmpty ? (
+                          <span className="px-2 py-0.5 rounded bg-amber-500/10 text-amber-300/80 border border-amber-500/20 text-[10px] font-mono">
+                            0 leads (vazia)
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 text-[10px] font-mono font-bold">
+                            {cat.count} {cat.count === 1 ? 'lead' : 'leads'}
+                          </span>
+                        )}
+
+                        <button
+                          onClick={() => setEditingCategory({ ...cat })}
+                          className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300"
+                          title="Editar Categoria"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+
+                        <button
+                          onClick={() => {
+                            if (confirm(`Excluir a categoria "${cat.name}"? Os leads vinculados permanecerão cadastrados como "Sem Categoria".`)) {
+                              onDeleteCategory(cat.id);
+                            }
+                          }}
+                          className="p-1.5 rounded-lg bg-slate-800 hover:bg-rose-500/20 hover:text-rose-400 text-slate-400"
+                          title="Excluir Categoria"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
-                  </div>
-
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <span className="px-2 py-0.5 rounded bg-slate-950 text-[10px] text-slate-400 font-mono">
-                      {cat.count || 0} leads
-                    </span>
-
-                    <button
-                      onClick={() => setEditingCategory({ ...cat })}
-                      className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300"
-                      title="Editar Categoria"
-                    >
-                      <Edit2 className="w-3.5 h-3.5" />
-                    </button>
-
-                    <button
-                      onClick={() => {
-                        if (confirm(`Tem certeza que deseja excluir a categoria "${cat.name}"? Os leads desta categoria não serão excluídos.`)) {
-                          onDeleteCategory(cat.id);
-                        }
-                      }}
-                      className="p-1.5 rounded-lg bg-slate-800 hover:bg-rose-500/20 hover:text-rose-400 text-slate-400"
-                      title="Excluir Categoria"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
-              ))}
+                  );
+                })}
             </div>
 
             <div className="flex justify-between items-center pt-2 border-t border-slate-800 text-xs">
@@ -930,7 +1228,7 @@ export default function LeadsManager({
                   setShowManageCatsModal(false);
                   setShowCatModal(true);
                 }}
-                className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold flex items-center gap-1.5"
+                className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold flex items-center gap-1.5 shadow-lg shadow-purple-500/20"
               >
                 <Plus className="w-4 h-4" /> Criar Nova Categoria
               </button>
@@ -1516,61 +1814,114 @@ export default function LeadsManager({
               </div>
             </div>
 
-            {/* SEÇÃO: Categoria & Opção de Sobrescrever */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-              {/* Seleção de Categoria */}
+            {/* SEÇÃO: Regra de Categoria & Opção de Sobrescrever */}
+            <div className="space-y-3 text-xs">
+              {/* Opção de Atribuição de Categoria */}
               <div className="space-y-1.5">
-                <label className="font-semibold text-slate-300 flex items-center gap-1.5">
-                  <Tag className="w-3.5 h-3.5 text-purple-400" /> Categoria de Destino
+                <label className="font-bold text-white flex items-center gap-1.5">
+                  <Tag className="w-4 h-4 text-purple-400" />
+                  Regra de Categoria na Importação
                 </label>
-                <select
-                  value={isCustomCategory ? '__NEW__' : importCategory}
-                  onChange={(e) => {
-                    if (e.target.value === '__NEW__') {
-                      setIsCustomCategory(true);
-                    } else {
-                      handleCategorySelect(e.target.value);
-                    }
-                  }}
-                  className="w-full px-3.5 py-2.5 rounded-xl glass-input text-white bg-slate-900"
-                >
-                  {categories.map((c) => (
-                    <option key={c.id} value={c.name}>{c.name}</option>
-                  ))}
-                  <option value="__NEW__">+ Criar Nova Categoria...</option>
-                </select>
 
-                {isCustomCategory && (
-                  <input
-                    type="text"
-                    placeholder="Digite o nome da nova categoria..."
-                    value={customCategoryName}
-                    onChange={(e) => {
-                      setCustomCategoryName(e.target.value);
-                      setParsedImportLeads(prev => prev.map(l => ({ ...l, category: e.target.value })));
-                    }}
-                    className="w-full px-3.5 py-2 rounded-xl glass-input text-white mt-1.5"
-                    autoFocus
-                  />
-                )}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div
+                    onClick={() => handleToggleSpreadsheetCategories(false)}
+                    className={`p-3 rounded-2xl border cursor-pointer transition-all ${
+                      !useSpreadsheetCategories
+                        ? 'bg-purple-500/15 border-purple-500 text-white shadow-md'
+                        : 'bg-slate-900/60 border-slate-800 text-slate-300 hover:border-slate-700'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-bold text-xs flex items-center gap-1.5">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-purple-400" /> Categoria Fixa Única (Recomendado)
+                      </span>
+                      {!useSpreadsheetCategories && <span className="w-2 h-2 rounded-full bg-purple-400"></span>}
+                    </div>
+                    <p className="text-[11px] text-slate-400 leading-relaxed">
+                      Atribui 100% dos contatos importados à categoria selecionada abaixo, garantindo organização e sem poluir o sistema com tags extras.
+                    </p>
+                  </div>
+
+                  <div
+                    onClick={() => handleToggleSpreadsheetCategories(true)}
+                    className={`p-3 rounded-2xl border cursor-pointer transition-all ${
+                      useSpreadsheetCategories
+                        ? 'bg-purple-500/15 border-purple-500 text-white shadow-md'
+                        : 'bg-slate-900/60 border-slate-800 text-slate-300 hover:border-slate-700'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-bold text-xs flex items-center gap-1.5">
+                        <Layers className="w-3.5 h-3.5 text-purple-400" /> Usar Coluna "Etiquetas" da Planilha
+                      </span>
+                      {useSpreadsheetCategories && <span className="w-2 h-2 rounded-full bg-purple-400"></span>}
+                    </div>
+                    <p className="text-[11px] text-slate-400 leading-relaxed">
+                      Cria categorias automaticamente a partir do texto encontrado na coluna Etiquetas. (Utilize apenas se a planilha já estiver limpa e padronizada).
+                    </p>
+                  </div>
+                </div>
               </div>
 
-              {/* Checkbox Sobrescrever Contatos Existentes */}
-              <div className="space-y-1.5">
-                <label className="font-semibold text-slate-300">Tratamento de Contatos Existentes</label>
-                <div 
-                  onClick={() => setImportUpdateExisting(!importUpdateExisting)}
-                  className="flex items-start gap-2.5 p-2.5 rounded-xl bg-slate-900/60 border border-slate-800 cursor-pointer hover:bg-slate-900 transition-colors"
-                >
-                  <input
-                    type="checkbox"
-                    checked={importUpdateExisting}
-                    onChange={(e) => setImportUpdateExisting(e.target.checked)}
-                    className="mt-0.5 rounded text-emerald-500 focus:ring-emerald-500 cursor-pointer"
-                  />
-                  <div className="text-[11px] text-slate-300 leading-tight">
-                    <strong className="text-white block">Atualizar contatos existentes</strong>
-                    Se o telefone já existir no sistema, atualizar seu status de Opt-In e categoria conforme configurado acima.
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Seleção de Categoria (se Categoria Fixa ou como fallback) */}
+                <div className="space-y-1.5">
+                  <label className="font-semibold text-slate-300 flex items-center gap-1.5">
+                    <Tag className="w-3.5 h-3.5 text-purple-400" />
+                    {!useSpreadsheetCategories ? 'Categoria de Destino para Todos os Contatos' : 'Categoria Padrão (Fallback)'}
+                  </label>
+                  <select
+                    value={isCustomCategory ? '__NEW__' : importCategory}
+                    onChange={(e) => {
+                      if (e.target.value === '__NEW__') {
+                        setIsCustomCategory(true);
+                      } else {
+                        handleCategorySelect(e.target.value);
+                      }
+                    }}
+                    className="w-full px-3.5 py-2.5 rounded-xl glass-input text-white bg-slate-900"
+                  >
+                    {categories.map((c) => (
+                      <option key={c.id} value={c.name}>{c.name}</option>
+                    ))}
+                    <option value="__NEW__">+ Criar Nova Categoria...</option>
+                  </select>
+
+                  {isCustomCategory && (
+                    <input
+                      type="text"
+                      placeholder="Digite o nome da nova categoria..."
+                      value={customCategoryName}
+                      onChange={(e) => {
+                        setCustomCategoryName(e.target.value);
+                        if (!useSpreadsheetCategories) {
+                          setParsedImportLeads(prev => prev.map(l => ({ ...l, category: e.target.value })));
+                        }
+                      }}
+                      className="w-full px-3.5 py-2 rounded-xl glass-input text-white mt-1.5"
+                      autoFocus
+                    />
+                  )}
+                </div>
+
+                {/* Checkbox Sobrescrever Contatos Existentes */}
+                <div className="space-y-1.5">
+                  <label className="font-semibold text-slate-300">Tratamento de Contatos Existentes</label>
+                  <div 
+                    onClick={() => setImportUpdateExisting(!importUpdateExisting)}
+                    className="flex items-start gap-2.5 p-2.5 rounded-xl bg-slate-900/60 border border-slate-800 cursor-pointer hover:bg-slate-900 transition-colors"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={importUpdateExisting}
+                      onChange={(e) => setImportUpdateExisting(e.target.checked)}
+                      className="mt-0.5 rounded text-emerald-500 focus:ring-emerald-500 cursor-pointer"
+                    />
+                    <div className="text-[11px] text-slate-300 leading-tight">
+                      <strong className="text-white block">Atualizar contatos existentes</strong>
+                      Se o telefone já existir no sistema, atualizar seu status de Opt-In e categoria conforme configurado acima.
+                    </div>
                   </div>
                 </div>
               </div>

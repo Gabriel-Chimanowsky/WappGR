@@ -75,7 +75,7 @@ export default function App() {
     try {
       const [statsRes, leadsRes, catRes, flowsRes, optInRes, campRes, schedRes, msgRes, connRes, crmRes] = await Promise.all([
         api('/api/v1/dashboard/stats'),
-        api('/api/v1/leads'),
+        api('/api/v1/leads?limit=10000'),
         api('/api/v1/categories'),
         api('/api/v1/flows'),
         api('/api/v1/optin/config'),
@@ -208,6 +208,33 @@ export default function App() {
       fetchAllData();
     } catch (err) {
       showToast(err.message, 'error');
+    }
+  };
+
+  const handleCleanupEmptyCategories = async () => {
+    try {
+      const result = await api('/api/v1/categories/cleanup-empty', { method: 'POST' });
+      showToast(`${result.deletedCount || 0} categorias vazias foram removidas!`, 'info');
+      fetchAllData();
+      return result;
+    } catch (err) {
+      showToast(err.message, 'error');
+      return null;
+    }
+  };
+
+  const handleBulkDeleteCategories = async (ids, reassignTo = null) => {
+    try {
+      const result = await api('/api/v1/categories/bulk-delete', {
+        method: 'POST',
+        body: JSON.stringify({ ids, reassignTo })
+      });
+      showToast(`${result.count || 0} categorias removidas!`, 'info');
+      fetchAllData();
+      return result;
+    } catch (err) {
+      showToast(err.message, 'error');
+      return null;
     }
   };
 
@@ -444,6 +471,8 @@ export default function App() {
               onAddCategory={handleAddCategory}
               onUpdateCategory={handleUpdateCategory}
               onDeleteCategory={handleDeleteCategory}
+              onCleanupEmptyCategories={handleCleanupEmptyCategories}
+              onBulkDeleteCategories={handleBulkDeleteCategories}
               onBulkUpdateLeads={handleBulkUpdateLeads}
               onBulkDeleteLeads={handleBulkDeleteLeads}
               onImportLeads={handleImportLeads}
