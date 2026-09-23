@@ -201,6 +201,7 @@ export default function LeadsManager({
   onUpdateCategory,
   onDeleteCategory,
   onCleanupEmptyCategories,
+  onCleanupCorruptedCategories,
   onBulkDeleteCategories,
   onBulkUpdateLeads,
   onBulkDeleteLeads,
@@ -272,6 +273,14 @@ export default function LeadsManager({
   // Categorias vazias (sem nenhum lead vinculado)
   const emptyCategories = useMemo(() => {
     return categories.filter(c => (c.count || 0) === 0);
+  }, [categories]);
+
+  // Categorias corrompidas (com caracteres binários, caracteres de substituição U+FFFD ou tamanho anormal)
+  const corruptedCategories = useMemo(() => {
+    return categories.filter(c => {
+      if (!c.name || !c.name.trim()) return true;
+      return /[\uFFFD\u0000-\u001F\u007F-\u009F]/.test(c.name) || c.name.length > 45;
+    });
   }, [categories]);
 
   // Filter logic (category_name from SQLite join)
@@ -384,16 +393,54 @@ export default function LeadsManager({
     }
   };
 
-  // Tratamento do arquivo selecionado na Importação em Massa
-  const handleImportFileInput = (e) => {
+  // Tratamento do arquivo selecionado na Importação em Massa (suporte a .xlsx, .xls, .csv, .txt)
+  const handleImportFileInput = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
     setImportFileName(file.name);
+    const isExcel = file.name.endsWith('.xlsx') || file.name.endsWith('.xls');
+
+    if (isExcel) {
+      showToast('Lendo planilha Excel...', 'info');
+      try {
+        if (!window.XLSX) {
+          await new Promise((resolve, reject) => {
+            const script = document.createElement('script');
+            script.src = 'https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js';
+            script.onload = () => resolve();
+            script.onerror = () => reject(new Error('Não foi possível carregar leitor Excel. No Google Planilhas, faça download como CSV ou use a aba "Colar Lista".'));
+            document.head.appendChild(script);
+          });
+        }
+        const data = await file.arrayBuffer();
+        const workbook = window.XLSX.read(data, { type: 'array' });
+        const firstSheet = workbook.SheetNames[0];
+        const csvText = window.XLSX.utils.sheet_to_csv(workbook.Sheets[firstSheet], { FS: '\t' });
+        const targetCategory = isCustomCategory && customCategoryName.trim() ? customCategoryName.trim() : importCategory;
+        const parsed = parseLeadsInput(csvText, targetCategory, importConsentStatus, useSpreadsheetCategories);
+        setParsedImportLeads(parsed);
+        if (parsed.length === 0) {
+          showToast('Nenhum contato com telefone válido encontrado na planilha Excel.', 'warning');
+        } else {
+          showToast(`${parsed.length} contatos extraídos da planilha Excel com sucesso!`, 'success');
+        }
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+      e.target.value = '';
+      return;
+    }
+
     const reader = new FileReader();
     reader.onload = (evt) => {
       try {
         const text = evt.target.result;
+        // Evitar leitura de arquivo binário corrompido (ex: ZIP ou XLSX renomeado para CSV)
+        if (text.startsWith('PK\x03\x04') || text.includes('\uFFFD') || text.includes('\x00')) {
+          showToast('Este arquivo contém formato binário (Excel não-convertido). No Google Planilhas, escolha "Fazer download > Valores separados por vírgula (.csv)".', 'error');
+          return;
+        }
         const targetCategory = isCustomCategory && customCategoryName.trim() ? customCategoryName.trim() : importCategory;
         const parsed = parseLeadsInput(text, targetCategory, importConsentStatus, useSpreadsheetCategories);
         setParsedImportLeads(parsed);
@@ -517,6 +564,24 @@ export default function LeadsManager({
         await onBulkDeleteCategories(selectedCatIds);
       }
       setSelectedCatIds([]);
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      setIsCleaningCats(false);
+    }
+  };
+
+  // Reparar categorias corrompidas (com caracteres estranhos)
+  const handleCleanupCorruptedCats = async () => {
+    if (!confirm(`Deseja reparar ${corruptedCategories.length} categoria(s) corrompida(s)? Todos os leads vinculados a elas serão movidos com segurança para "Leads Orgânicos" e as categorias inválidas serão excluídas.`)) {
+      return;
+    }
+    setIsCleaningCats(true);
+    try {
+      if (onCleanupCorruptedCategories) {
+        await onCleanupCorruptedCategories();
+      }
+      setSelectedCategory('TODOS');
     } catch (err) {
       showToast(err.message, 'error');
     } finally {
@@ -648,6 +713,17 @@ export default function LeadsManager({
         >
           Todas Categorias ({leads.length})
         </button>
+
+        {corruptedCategories.length > 0 && (
+          <button
+            onClick={handleCleanupCorruptedCats}
+            className="px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex-shrink-0 flex items-center gap-1.5 bg-rose-500/20 border border-rose-500/50 text-rose-300 hover:bg-rose-500/30 shadow-lg"
+            title="Clique para reparar as categorias corrompidas e mover os leads vinculados para Leads Orgânicos"
+          >
+            <AlertCircle className="w-3.5 h-3.5 text-rose-400" />
+            <span>Reparar {corruptedCategories.length} Bugadas</span>
+          </button>
+        )}
 
         {emptyCategories.length > 0 && (
           <button
@@ -1088,6 +1164,18 @@ export default function LeadsManager({
 
             {/* Barra de Ações Rápidas de Limpeza */}
             <div className="flex flex-wrap items-center gap-2 text-xs">
+              {corruptedCategories.length > 0 && (
+                <button
+                  onClick={handleCleanupCorruptedCats}
+                  disabled={isCleaningCats}
+                  className="px-3.5 py-2 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/50 font-bold flex items-center gap-2 transition-all shadow-sm"
+                  title="Move todos os leads das categorias corrompidas para Leads Orgânicos e remove as categorias bugadas"
+                >
+                  <AlertCircle className="w-3.5 h-3.5 text-rose-400" />
+                  Reparar {corruptedCategories.length} Bugadas (Salvar Leads)
+                </button>
+              )}
+
               {emptyCategories.length > 0 && (
                 <button
                   onClick={handleCleanupEmptyCats}

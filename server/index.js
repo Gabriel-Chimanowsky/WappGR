@@ -911,6 +911,50 @@ app.post('/api/v1/categories/cleanup-empty', (req, res) => {
   });
 });
 
+// Limpar categorias corrompidas ou com caracteres binários/estranhos e salvar os leads
+app.post('/api/v1/categories/cleanup-corrupted', (req, res) => {
+  const d = getDb();
+  
+  // Garantir categoria segura padrão
+  let safeCat = d.prepare("SELECT id FROM categories WHERE name = 'Leads Orgânicos'").get();
+  if (!safeCat) {
+    const newId = generateId();
+    d.prepare("INSERT INTO categories (id, name, color, description) VALUES (?, 'Leads Orgânicos', '#10b981', 'Categoria padrão')").run(newId);
+    safeCat = { id: newId };
+  }
+
+  const allCats = d.prepare("SELECT id, name FROM categories").all();
+  const corrupted = allCats.filter(c => {
+    if (!c.name || !c.name.trim()) return true;
+    // Contém caractere de substituição UTF-8 (\uFFFD), controle (\x00-\x1F, \x7F-\x9F), ou mais de 45 caracteres
+    if (/[\uFFFD\u0000-\u001F\u007F-\u009F]/.test(c.name)) return true;
+    if (c.name.length > 45) return true;
+    return false;
+  });
+
+  let reallocatedLeads = 0;
+  if (corrupted.length > 0) {
+    const ids = corrupted.map(c => c.id);
+    const placeholders = ids.map(() => '?').join(',');
+    d.transaction(() => {
+      // Reatribuir leads para a categoria segura para que o usuário não perca seus contatos
+      const updateResult = d.prepare(`UPDATE leads SET category_id = ? WHERE category_id IN (${placeholders})`).run(safeCat.id, ...ids);
+      reallocatedLeads = updateResult.changes || 0;
+      // Excluir as categorias corrompidas
+      d.prepare(`DELETE FROM categories WHERE id IN (${placeholders})`).run(...ids);
+    })();
+  }
+
+  res.json({
+    success: true,
+    deletedCount: corrupted.length,
+    deletedNames: corrupted.map(c => c.name),
+    reallocatedLeads,
+    targetCategory: 'Leads Orgânicos'
+  });
+});
+
+
 
 // ════════════════════════════════════════════════════════
 // 4. OPT-IN ENGINE

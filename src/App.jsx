@@ -223,6 +223,18 @@ export default function App() {
     }
   };
 
+  const handleCleanupCorruptedCategories = async () => {
+    try {
+      const result = await api('/api/v1/categories/cleanup-corrupted', { method: 'POST' });
+      showToast(`${result.deletedCount || 0} categorias corrompidas removidas e ${result.reallocatedLeads || 0} leads recuperados!`, 'success');
+      fetchAllData();
+      return result;
+    } catch (err) {
+      showToast(err.message, 'error');
+      return null;
+    }
+  };
+
   const handleBulkDeleteCategories = async (ids, reassignTo = null) => {
     try {
       const result = await api('/api/v1/categories/bulk-delete', {
@@ -472,6 +484,7 @@ export default function App() {
               onUpdateCategory={handleUpdateCategory}
               onDeleteCategory={handleDeleteCategory}
               onCleanupEmptyCategories={handleCleanupEmptyCategories}
+              onCleanupCorruptedCategories={handleCleanupCorruptedCategories}
               onBulkDeleteCategories={handleBulkDeleteCategories}
               onBulkUpdateLeads={handleBulkUpdateLeads}
               onBulkDeleteLeads={handleBulkDeleteLeads}
