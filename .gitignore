@@ -22,3 +22,11 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# SQLite Database & Cache
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.bak
+server/wappgr.db*
