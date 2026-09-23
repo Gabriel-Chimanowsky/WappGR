@@ -887,8 +887,48 @@ app.post('/api/v1/categories/bulk-delete', (req, res) => {
   res.json({ success: true, count: ids.length });
 });
 
-// Limpar todas as categorias vazias (com 0 leads)
-app.post('/api/v1/categories/cleanup-empty', (req, res) => {
+// Função de auto-reparo e sanitização de categorias
+function runAutoRepairCategories() {
+  try {
+    const d = getDb();
+    let safeCat = d.prepare("SELECT id FROM categories WHERE name = 'Leads Orgânicos'").get();
+    if (!safeCat) {
+      const newId = generateId();
+      d.prepare("INSERT INTO categories (id, name, color, description) VALUES (?, 'Leads Orgânicos', '#10b981', 'Categoria padrão')").run(newId);
+      safeCat = { id: newId };
+    }
+
+    const allCats = d.prepare("SELECT id, name FROM categories").all();
+    const corrupted = allCats.filter(c => {
+      if (!c.name || !c.name.trim()) return true;
+      const trimmed = c.name.trim();
+      // Não possui letras nem números (ex: apenas símbolos como +, *, -, etc.)
+      if (!/[a-zA-Z0-9\u00C0-\u00FF]/.test(trimmed)) return true;
+      // Contém caractere de substituição UTF-8 (\uFFFD), controle (\x00-\x1F, \x7F-\x9F)
+      if (/[\uFFFD\u0000-\u001F\u007F-\u009F]/.test(trimmed)) return true;
+      // Resíduos binários de zip / planilha Excel
+      if (trimmed.includes('xml') || trimmed.includes('xl/') || trimmed.includes('Content_Types')) return true;
+      // Tamanho excessivo gerado por corrupção
+      if (trimmed.length > 45) return true;
+      return false;
+    });
+
+    if (corrupted.length > 0) {
+      const ids = corrupted.map(c => c.id);
+      const placeholders = ids.map(() => '?').join(',');
+      d.transaction(() => {
+        d.prepare(`UPDATE leads SET category_id = ? WHERE category_id IN (${placeholders})`).run(safeCat.id, ...ids);
+        d.prepare(`DELETE FROM categories WHERE id IN (${placeholders})`).run(...ids);
+      })();
+      console.log(`[Auto-Repair] ${corrupted.length} categorias corrompidas foram reparadas e seus leads transferidos para "Leads Orgânicos".`);
+    }
+  } catch (e) {
+    console.error('[Auto-Repair Error]', e.message);
+  }
+}
+
+// Limpar todas as categorias vazias (com 0 leads) - Suporta GET e POST
+app.all('/api/v1/categories/cleanup-empty', (req, res) => {
   const d = getDb();
   const emptyCats = d.prepare(`
     SELECT c.id, c.name 
@@ -904,6 +944,27 @@ app.post('/api/v1/categories/cleanup-empty', (req, res) => {
     d.prepare(`DELETE FROM categories WHERE id IN (${placeholders})`).run(...ids);
   }
 
+  if (req.method === 'GET' && req.headers.accept && req.headers.accept.includes('text/html')) {
+    return res.send(`
+      <!DOCTYPE html>
+      <html>
+      <head><meta charset="utf-8"><title>WappGR - Limpeza de Categorias Vazias</title>
+      <style>body{background:#090d16;color:#e2e8f0;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;}
+      .card{background:#111827;border:1px solid #1f2937;padding:30px;border-radius:16px;max-width:500px;text-align:center;box-shadow:0 10px 25px rgba(0,0,0,0.5);}
+      h2{color:#10b981;margin-top:0;}
+      p{color:#94a3b8;font-size:14px;line-height:1.6;}
+      a{display:inline-block;margin-top:20px;padding:10px 20px;background:#10b981;color:#090d16;text-decoration:none;font-weight:bold;border-radius:8px;}
+      </style></head>
+      <body>
+        <div class="card">
+          <h2>✅ Limpeza Concluída!</h2>
+          <p>Foram removidas <strong>${emptyCats.length}</strong> categorias vazias.</p>
+          <a href="/">Voltar para o WappGR</a>
+        </div>
+      </body></html>
+    `);
+  }
+
   res.json({ 
     success: true, 
     deletedCount: emptyCats.length, 
@@ -911,8 +972,8 @@ app.post('/api/v1/categories/cleanup-empty', (req, res) => {
   });
 });
 
-// Limpar categorias corrompidas ou com caracteres binários/estranhos e salvar os leads
-app.post('/api/v1/categories/cleanup-corrupted', (req, res) => {
+// Limpar categorias corrompidas ou com caracteres binários/estranhos e salvar os leads - Suporta GET e POST
+app.all('/api/v1/categories/cleanup-corrupted', (req, res) => {
   const d = getDb();
   
   // Garantir categoria segura padrão
@@ -926,9 +987,15 @@ app.post('/api/v1/categories/cleanup-corrupted', (req, res) => {
   const allCats = d.prepare("SELECT id, name FROM categories").all();
   const corrupted = allCats.filter(c => {
     if (!c.name || !c.name.trim()) return true;
-    // Contém caractere de substituição UTF-8 (\uFFFD), controle (\x00-\x1F, \x7F-\x9F), ou mais de 45 caracteres
-    if (/[\uFFFD\u0000-\u001F\u007F-\u009F]/.test(c.name)) return true;
-    if (c.name.length > 45) return true;
+    const trimmed = c.name.trim();
+    // Não possui letras nem números (ex: símbolos como +, *, etc.)
+    if (!/[a-zA-Z0-9\u00C0-\u00FF]/.test(trimmed)) return true;
+    // Contém caractere de substituição UTF-8 (\uFFFD), controle (\x00-\x1F, \x7F-\x9F)
+    if (/[\uFFFD\u0000-\u001F\u007F-\u009F]/.test(trimmed)) return true;
+    // Resíduos binários
+    if (trimmed.includes('xml') || trimmed.includes('xl/') || trimmed.includes('Content_Types')) return true;
+    // Mais de 45 caracteres
+    if (trimmed.length > 45) return true;
     return false;
   });
 
@@ -943,6 +1010,28 @@ app.post('/api/v1/categories/cleanup-corrupted', (req, res) => {
       // Excluir as categorias corrompidas
       d.prepare(`DELETE FROM categories WHERE id IN (${placeholders})`).run(...ids);
     })();
+  }
+
+  if (req.method === 'GET' && req.headers.accept && req.headers.accept.includes('text/html')) {
+    return res.send(`
+      <!DOCTYPE html>
+      <html>
+      <head><meta charset="utf-8"><title>WappGR - Reparo de Categorias</title>
+      <style>body{background:#090d16;color:#e2e8f0;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;}
+      .card{background:#111827;border:1px solid #1f2937;padding:30px;border-radius:16px;max-width:500px;text-align:center;box-shadow:0 10px 25px rgba(0,0,0,0.5);}
+      h2{color:#10b981;margin-top:0;}
+      p{color:#94a3b8;font-size:14px;line-height:1.6;}
+      a{display:inline-block;margin-top:20px;padding:10px 20px;background:#10b981;color:#090d16;text-decoration:none;font-weight:bold;border-radius:8px;}
+      </style></head>
+      <body>
+        <div class="card">
+          <h2>🎉 Reparo Concluído com Sucesso!</h2>
+          <p>Foram reparadas <strong>${corrupted.length}</strong> categorias corrompidas.</p>
+          <p><strong>${reallocatedLeads}</strong> leads foram salvos e movidos com sucesso para a categoria <strong>"Leads Orgânicos"</strong>.</p>
+          <a href="/">Voltar para o WappGR</a>
+        </div>
+      </body></html>
+    `);
   }
 
   res.json({
@@ -1495,4 +1584,5 @@ app.listen(PORT, () => {
   console.log(`🚀 WappGR Backend rodando na porta ${PORT}`);
   console.log(`📦 Banco SQLite: server/wappgr.db`);
   console.log(`📱 WhatsApp Baileys Nativo: Inicializado`);
+  runAutoRepairCategories();
 });

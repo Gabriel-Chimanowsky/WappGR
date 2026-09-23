@@ -275,11 +275,18 @@ export default function LeadsManager({
     return categories.filter(c => (c.count || 0) === 0);
   }, [categories]);
 
-  // Categorias corrompidas (com caracteres binários, caracteres de substituição U+FFFD ou tamanho anormal)
+  // Categorias corrompidas (com caracteres binários, símbolos isolados sem texto, caracteres de substituição U+FFFD ou tamanho anormal)
   const corruptedCategories = useMemo(() => {
     return categories.filter(c => {
       if (!c.name || !c.name.trim()) return true;
-      return /[\uFFFD\u0000-\u001F\u007F-\u009F]/.test(c.name) || c.name.length > 45;
+      const trimmed = c.name.trim();
+      // Não possui letras nem números (ex: apenas símbolos como +, *, -, etc.)
+      if (!/[a-zA-Z0-9\u00C0-\u00FF]/.test(trimmed)) return true;
+      // Contém caractere de substituição UTF-8 (\uFFFD), controle (\x00-\x1F, \x7F-\x9F)
+      if (/[\uFFFD\u0000-\u001F\u007F-\u009F]/.test(trimmed)) return true;
+      // Resíduos binários
+      if (trimmed.includes('xml') || trimmed.includes('xl/') || trimmed.includes('Content_Types')) return true;
+      return trimmed.length > 45;
     });
   }, [categories]);
 
