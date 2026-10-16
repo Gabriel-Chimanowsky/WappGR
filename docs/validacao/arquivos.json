@@ -1,0 +1,666 @@
+{
+  "baseCommit": "8dc1596f2204529e222b7b0af8324a5db390969f",
+  "date": "2026-10-16",
+  "files": [
+    {
+      "status": " M",
+      "path": ".gitignore",
+      "bytes": 533,
+      "sha256": "10982f2bf38dda4fce387932f25ad5bfd92baa6fe84078b77c3c66a59df28704"
+    },
+    {
+      "status": " M",
+      "path": "README.md",
+      "bytes": 6571,
+      "sha256": "be7cda43e0ee61457644a7bf56833c1142b7c1f585bf2dad5e6e0dbf9c31f05c"
+    },
+    {
+      "status": " M",
+      "path": "docker-compose.yml",
+      "bytes": 2852,
+      "sha256": "81a3c81c78f641d4d79f37daf07ad00d87e03f6c83cefbf4ce0a3ac34b232c38"
+    },
+    {
+      "status": " M",
+      "path": "index.html",
+      "bytes": 1291,
+      "sha256": "29281031a99f31ed6271f9e750ad10524f9382219e100350b1dffe3732bed0fb"
+    },
+    {
+      "status": " M",
+      "path": "package-lock.json",
+      "bytes": 185025,
+      "sha256": "8041ff936e19deeb56d227d3f79039be2c92b9d834bed48913dfef942dab358b"
+    },
+    {
+      "status": " M",
+      "path": "package.json",
+      "bytes": 2026,
+      "sha256": "ba874dbf9f2a2e6b6a4ed2cb68358421aa3b0c8c6b5e2ac1e9c995bdb1038c45"
+    },
+    {
+      "status": " M",
+      "path": "server/baileys.js",
+      "bytes": 12609,
+      "sha256": "366f2656d84334cf71028d04fb04ed1099aab2cd5b89fb08e1582eb87ba1a3c7"
+    },
+    {
+      "status": " M",
+      "path": "server/db.js",
+      "bytes": 8082,
+      "sha256": "b6106167bff173b550044925eaa1c2fc05ea4f6ac960651a495130e8e1bbb916"
+    },
+    {
+      "status": " M",
+      "path": "server/index.js",
+      "bytes": 1720,
+      "sha256": "3549612c71a7a2c146a8c242b5eeff9424d7faf78db8381cb06b5c6bf6bc3bf8"
+    },
+    {
+      "status": " M",
+      "path": "src/App.jsx",
+      "bytes": 6116,
+      "sha256": "76b38d35cb493d40344657d5ac4b42410653cf84e2a0cfe63ebf366f32f2ab64"
+    },
+    {
+      "status": " M",
+      "path": "src/components/CRMIntegration.jsx",
+      "bytes": 4572,
+      "sha256": "6fe6c8039fadbc879b119021b3aec2465a6f6ca5c84ab94f68cc72b787239221"
+    },
+    {
+      "status": " M",
+      "path": "src/components/CampaignBroadcastWizard.jsx",
+      "bytes": 26218,
+      "sha256": "9ce3d11166245e53e2034e33ec1e4408dba54759da71a8cd58bbc9c58e60d43f"
+    },
+    {
+      "status": " M",
+      "path": "src/components/ConnectionManager.jsx",
+      "bytes": 5342,
+      "sha256": "b6f4d225d22c692fcd9b259ac70b0dae7551ed093cbbb524caa66f2125de3db5"
+    },
+    {
+      "status": " M",
+      "path": "src/components/Dashboard.jsx",
+      "bytes": 16775,
+      "sha256": "8689e40e2b3400bd553127935269606eab5809a3b8a88d94aa88c888799e9e58"
+    },
+    {
+      "status": " M",
+      "path": "src/components/FlowsManager.jsx",
+      "bytes": 42968,
+      "sha256": "330f74fc301a544df16f1ffdc93085690d1c71e25ef9db3491f034b9c5608acd"
+    },
+    {
+      "status": " M",
+      "path": "src/components/LeadsManager.jsx",
+      "bytes": 27636,
+      "sha256": "a6300239339b9ef60ba7bb629432bf5362124282b4211ccd47b1bd53f362bd23"
+    },
+    {
+      "status": " M",
+      "path": "src/components/LiveChat.jsx",
+      "bytes": 6791,
+      "sha256": "a004d9f02745423d69bc076693bd4cb03a7d854b4177af152f6d1e2c40b3d9cb"
+    },
+    {
+      "status": " M",
+      "path": "src/components/Navbar.jsx",
+      "bytes": 2354,
+      "sha256": "3818a0092d31aa35bb6fe1db2b1b9e598cd8abc96014cea95be65c38514d6ed1"
+    },
+    {
+      "status": " M",
+      "path": "src/components/OptInEngineConfig.jsx",
+      "bytes": 14548,
+      "sha256": "f68025d77a519f29b43c53884818cbeadb110141741051a744c0a83ef9178bfa"
+    },
+    {
+      "status": " M",
+      "path": "src/components/SchedulerManager.jsx",
+      "bytes": 8455,
+      "sha256": "4c0fa5d38a87263c24e175499aebeee95c445de2eb8aa017c7c3a9032e6728b2"
+    },
+    {
+      "status": " M",
+      "path": "src/components/Sidebar.jsx",
+      "bytes": 5572,
+      "sha256": "f3e00ff01de7586c7dad2cd157bd3d6c7bb8b8cd2fb8f4518f1d9180c5ec6d6a"
+    },
+    {
+      "status": " M",
+      "path": "src/index.css",
+      "bytes": 2838,
+      "sha256": "8bc78b4a8364fe84c8426a506683f32a350cd415ae22238644a5ea921c0f436b"
+    },
+    {
+      "status": " M",
+      "path": "src/main.jsx",
+      "bytes": 317,
+      "sha256": "1b99156c0667dce076858cb926d19d3ebda3604d4f0749915946f8d5229bbfa3"
+    },
+    {
+      "status": "??",
+      "path": ".env.example",
+      "bytes": 636,
+      "sha256": "05c60a16d1b149ef2e41478a77bda94ea20541fc4f8b8b080e41c6c66b8b3624"
+    },
+    {
+      "status": "??",
+      "path": ".htaccess",
+      "bytes": 114,
+      "sha256": "893ee170e653713710034228d77c1d8c886002379e72ee49a499a7e2e540987a"
+    },
+    {
+      "status": "??",
+      "path": "docs/IMPLEMENTACAO_E_VALIDACAO.md",
+      "bytes": 26094,
+      "sha256": "330a71fafdf4d718819bc2745c6bb1fc0e7e47d447f2c0ef71d1654ac3dc2d26"
+    },
+    {
+      "status": "??",
+      "path": "docs/OPERACAO_WINDOWS.md",
+      "bytes": 12333,
+      "sha256": "16ce0cc24190c66bbc90cbf2fed50c302e0c87d975ec89b3ad3baf7ecebe9f6f"
+    },
+    {
+      "status": "??",
+      "path": "docs/RELATORIO_COMPLETO_WAPPGR.md",
+      "bytes": 72033,
+      "sha256": "498ed1fe5f2cf630860d3f96f04f7ae135980137deccca39ee14245b1a5aa147"
+    },
+    {
+      "status": "??",
+      "path": "docs/validacao/background.json",
+      "bytes": 7097,
+      "sha256": "4222801b4968e26aa6f6319bdba82f18692aa033398e7611f182a05047ff241c"
+    },
+    {
+      "status": "??",
+      "path": "docs/validacao/baileys-anterior/build.txt",
+      "bytes": 1122,
+      "sha256": "00d6c38b8998dab24e0eadffd215891dc885d7b14c205300b8c09dad207fa9e0"
+    },
+    {
+      "status": "??",
+      "path": "docs/validacao/baileys-anterior/lint.txt",
+      "bytes": 54,
+      "sha256": "1eb401641f18a8ecb5c8897267f51a5c5da257b4ef8d8bb4e277ddc03bd6d6a5"
+    },
+    {
+      "status": "??",
+      "path": "docs/validacao/baileys-anterior/navegador.txt",
+      "bytes": 672,
+      "sha256": "decbffee2b14c607849c52b5c2700609f0b4c5096d6dcdc45848a8776d4ee856"
+    },
+    {
+      "status": "??",
+      "path": "docs/validacao/baileys-anterior/testes.txt",
+      "bytes": 5934,
+      "sha256": "864e3aa753013dc6851e3764b2646bb04446dff51b52fd8ac8ebd8dcb126fb77"
+    },
+    {
+      "status": "??",
+      "path": "docs/validacao/baileys-anterior/verificacoes.json",
+      "bytes": 1569,
+      "sha256": "b549ae09eee4d9e634256730281df949a3059dfe7165fe65af0309c6dbdd38aa"
+    },
+    {
+      "status": "??",
+      "path": "docs/validacao/banco.json",
+      "bytes": 977,
+      "sha256": "85e11acbe1763749261824cb7b7b429f36476001f3fbc59a096fbcfa5e2d085d"
+    },
+    {
+      "status": "??",
+      "path": "docs/validacao/build.txt",
+      "bytes": 1122,
+      "sha256": "43f75e6f7c6c028916e27c5d79a2b2ef538514aee5cc4254232f2142beed7c8c"
+    },
+    {
+      "status": "??",
+      "path": "docs/validacao/campanha-formulario.png",
+      "bytes": 119324,
+      "sha256": "bd829df8eb860198da3493103b96f2966e606eac7e9577dd84186f09957c2870"
+    },
+    {
+      "status": "??",
+      "path": "docs/validacao/campanha-intervalo.png",
+      "bytes": 160698,
+      "sha256": "5433a7262b6f4bfda94c1731c35b2a30241810588ca920a70d521b36c5a647bc"
+    },
+    {
+      "status": "??",
+      "path": "docs/validacao/campanha-pausada17.png",
+      "bytes": 161380,
+      "sha256": "e35bb2be7b1aa083212590c78877d5457fc555229ece50b3ab9355e0a2901e0d"
+    },
+    {
+      "status": "??",
+      "path": "docs/validacao/chat-paginado.png",
+      "bytes": 86745,
+      "sha256": "3d6fb336a7a54c58b111c0d31acd4a1b09f022fe7b12f6c4a63d7e807b62d100"
+    },
+    {
+      "status": "??",
+      "path": "docs/validacao/conta-restrita.png",
+      "bytes": 95673,
+      "sha256": "4e4ccc5b95459c8886d4c0947ff7ae35d7dd39544df635a2ab642bf8fc83353a"
+    },
+    {
+      "status": "??",
+      "path": "docs/validacao/fluxos.png",
+      "bytes": 76937,
+      "sha256": "c6e576eba8c218f55b09bef447fbf4704fa05edbf257e71b82164101bbcb5334"
+    },
+    {
+      "status": "??",
+      "path": "docs/validacao/instalacao-background.json",
+      "bytes": 1572,
+      "sha256": "a9253bbb9c89248effa2f238ec96a03107279e4d7ebeb6dc055206c274ce9017"
+    },
+    {
+      "status": "??",
+      "path": "docs/validacao/instalacao-background.txt",
+      "bytes": 1616,
+      "sha256": "96f08014caaed19f3d9c4c8eff3ff8c0ed94fdce15b253a0e2d1ef7dcbaadd62"
+    },
+    {
+      "status": "??",
+      "path": "docs/validacao/instalacao.json",
+      "bytes": 596,
+      "sha256": "38dc3dc102eab50120c677e2defd23ad990b27e71f28fc4af14417b9ee9ce1f8"
+    },
+    {
+      "status": "??",
+      "path": "docs/validacao/instalacao.txt",
+      "bytes": 1292,
+      "sha256": "c974e6a66612bf6002f39ef7b54a72e36346e6a0d2a0be845a2545839396a8f2"
+    },
+    {
+      "status": "??",
+      "path": "docs/validacao/lint.txt",
+      "bytes": 54,
+      "sha256": "1eb401641f18a8ecb5c8897267f51a5c5da257b4ef8d8bb4e277ddc03bd6d6a5"
+    },
+    {
+      "status": "??",
+      "path": "docs/validacao/migracao.txt",
+      "bytes": 428,
+      "sha256": "bce18c63d552181777a982c6748300cc946f140e7ce6a4b9b3a3a7c298ffc6ec"
+    },
+    {
+      "status": "??",
+      "path": "docs/validacao/navegador.txt",
+      "bytes": 672,
+      "sha256": "c41c14939d1e2a8dc8d20fe85b16e8bcf1964f974666ba25304c871cced8c57d"
+    },
+    {
+      "status": "??",
+      "path": "docs/validacao/proxy-dev.json",
+      "bytes": 123,
+      "sha256": "6b99560311b663d9c0377bccc1f0ed5f0f56ed13549e491b46a5d5ba80db3f9b"
+    },
+    {
+      "status": "??",
+      "path": "docs/validacao/revisao-baileys.json",
+      "bytes": 4465,
+      "sha256": "6373bf58c023ef3bb9176c4ee143bf49f789b496a91c3f3a6863c03d4139ddce"
+    },
+    {
+      "status": "??",
+      "path": "docs/validacao/revisao-final.json",
+      "bytes": 392,
+      "sha256": "d6cb611017d2b3edc42fe63f7dcbfd48998c29654fb9d2a21da77f4aebf07f09"
+    },
+    {
+      "status": "??",
+      "path": "docs/validacao/selecao-entre-paginas.png",
+      "bytes": 161241,
+      "sha256": "b4526507000dce304e343d05d9d3930fccebe6c01d6a418a951ae3b496a97e00"
+    },
+    {
+      "status": "??",
+      "path": "docs/validacao/testes.txt",
+      "bytes": 8153,
+      "sha256": "4b4e91d49a9e7fc0011ea99df1dee936433fcdc1abc788e1d233d2f110c243ff"
+    },
+    {
+      "status": "??",
+      "path": "docs/validacao/verificacoes.json",
+      "bytes": 2868,
+      "sha256": "260a9b09ebaa8fcd813dec09df2e9b11c65cc88f23602930496eb2809941cf8f"
+    },
+    {
+      "status": "??",
+      "path": "docs/validacao/windows-commands.json",
+      "bytes": 987,
+      "sha256": "115f41d7e910e978dce315c2d8b1a78057cab9111cf607aaa3b5f157eb409afa"
+    },
+    {
+      "status": "??",
+      "path": "docs/validacao/windows-install.txt",
+      "bytes": 616,
+      "sha256": "f682e7e9a667131030f45b397e8e55ae50ab660ddd30e64a7c97df7a8c295fda"
+    },
+    {
+      "status": "??",
+      "path": "docs/validacao/windows-preparacao.txt",
+      "bytes": 220,
+      "sha256": "429820d27ae5077fd87fdf43b621fe68b07b80442a239cdd358a3226a8d8e886"
+    },
+    {
+      "status": "??",
+      "path": "docs/validacao/windows-status.json",
+      "bytes": 614,
+      "sha256": "8ed0df4732698bcbe6bbf0d68ceef16ef410a8eec4cdd8265e1e16168bad3b74"
+    },
+    {
+      "status": "??",
+      "path": "docs/validacao/windows-status.txt",
+      "bytes": 732,
+      "sha256": "609146880def44a59e2ef19b22f078acee0413b3ecf34c4eb92a3041c703f705"
+    },
+    {
+      "status": "??",
+      "path": "docs/validacao/windows-task.json",
+      "bytes": 1519,
+      "sha256": "47c18e3493c15c60a1b1e5a5a6e80b2ad8576f886a71e5611e126bd5f14f991e"
+    },
+    {
+      "status": "??",
+      "path": "docs/validacao/windows-task.txt",
+      "bytes": 1636,
+      "sha256": "d0e31f6474f6abfd3cc86a4d0fe0e3659f70cbaedef1682cdd1c9b29b2e37e30"
+    },
+    {
+      "status": "??",
+      "path": "docs/validacao/windows-xml.json",
+      "bytes": 103,
+      "sha256": "f08f5ceb1ed956e9a27be4bc666d4e7a6e6abef8a7f59232d844a8cb9cef80b7"
+    },
+    {
+      "status": "??",
+      "path": "playwright.config.cjs",
+      "bytes": 589,
+      "sha256": "1487d27aab602741d35a454b18c9432c36441d6e08a65871493e5b0bb3481a02"
+    },
+    {
+      "status": "??",
+      "path": "scripts/windows.ps1",
+      "bytes": 7384,
+      "sha256": "43aaba6bfeb5862cdfc454d108fe2757c10021b1d40d34fac1a6b5011ebfe3af"
+    },
+    {
+      "status": "??",
+      "path": "server/app.js",
+      "bytes": 26151,
+      "sha256": "5b38c6b13c030b8ff4b449ee43ccf9efc105cb7077bb8b142af23dcfc4f6e65f"
+    },
+    {
+      "status": "??",
+      "path": "server/auth.js",
+      "bytes": 5438,
+      "sha256": "c14a9e293043be55acb4e41753e03541cf39b435897c4c31d37b185284476268"
+    },
+    {
+      "status": "??",
+      "path": "server/backend.js",
+      "bytes": 4921,
+      "sha256": "5f1f5ca0db91db34170d56ad1942a823d4d97ae4b73c2236765d11774255eee7"
+    },
+    {
+      "status": "??",
+      "path": "server/backup.js",
+      "bytes": 4592,
+      "sha256": "1a7d737dbee1242ed2cf1c9256d5f800916a496f7e8700b7b4e8442d4b3d8451"
+    },
+    {
+      "status": "??",
+      "path": "server/campaigns.js",
+      "bytes": 18193,
+      "sha256": "b76300fbc05b05fd969c37c48fdb1d8ae2445877fdc948eb29e029dd6b37b145"
+    },
+    {
+      "status": "??",
+      "path": "server/cloud-api.js",
+      "bytes": 4995,
+      "sha256": "e8f255a72702da8b6a2a9a0b5631661c15f52a4784fcf6ebfbe9e7fcba132b3a"
+    },
+    {
+      "status": "??",
+      "path": "server/config.js",
+      "bytes": 1541,
+      "sha256": "548463526b71d0e56c707dc54e43bbc6f71462050683792ed9ff51ab195b8d55"
+    },
+    {
+      "status": "??",
+      "path": "server/dispatcher.js",
+      "bytes": 25920,
+      "sha256": "6d7380c6d47a2c1219809a1edcc132559189e13231b7392443119ca34f68bf89"
+    },
+    {
+      "status": "??",
+      "path": "server/domain.js",
+      "bytes": 4148,
+      "sha256": "5186fdc065eb9658f166f35394939ccfb1285c025a2b1845e953b4b169eee977"
+    },
+    {
+      "status": "??",
+      "path": "server/flows.js",
+      "bytes": 16923,
+      "sha256": "56b379aefd52fd16e35123112ef1bb16a00e6a66e0f41478960e742685818b7f"
+    },
+    {
+      "status": "??",
+      "path": "server/instance-lock.js",
+      "bytes": 1350,
+      "sha256": "6cb53f340ad37d27f3c697257587a0923f5dcdeac2cca79f5544db7c83022583"
+    },
+    {
+      "status": "??",
+      "path": "server/leads.js",
+      "bytes": 10759,
+      "sha256": "ed7864dc8c3038b677b81af84fbcc372ebe23eb4f7d1732bccb81a221c778aad"
+    },
+    {
+      "status": "??",
+      "path": "server/migrate.js",
+      "bytes": 941,
+      "sha256": "2b4e402110c79742f0177d0d82eb6c6e3d074e814cd11c4e84cac1f9997c19ac"
+    },
+    {
+      "status": "??",
+      "path": "server/migrations.js",
+      "bytes": 10995,
+      "sha256": "4ce0cc363656f9052892826cb4bcd9b31b851c2ebbd31167e93296340b0142d1"
+    },
+    {
+      "status": "??",
+      "path": "server/operations.js",
+      "bytes": 3024,
+      "sha256": "f20d350869ca412c407502d1477d2da5cfe3edb4240726688137bafd8a5e80fe"
+    },
+    {
+      "status": "??",
+      "path": "server/policy.js",
+      "bytes": 2836,
+      "sha256": "aa98ff44dc5eeb01cbe100791b99588b103a95bf69b833f801fa6109dc79f5d9"
+    },
+    {
+      "status": "??",
+      "path": "server/runtime.js",
+      "bytes": 4798,
+      "sha256": "02007c792b44991b5bd2667f9b2c8eb24588ab8f2c69401d2bd7472388537542"
+    },
+    {
+      "status": "??",
+      "path": "server/scheduler.js",
+      "bytes": 5929,
+      "sha256": "e38b4f70caced19265a67e94735f560fc736072a5f4569a576cacb7465b0957d"
+    },
+    {
+      "status": "??",
+      "path": "server/service-control.js",
+      "bytes": 3252,
+      "sha256": "711f2bfcf90ab9186cc08d979c08f39023e49ac0f5d2564089f14b1ac58d45ce"
+    },
+    {
+      "status": "??",
+      "path": "server/setup-admin.js",
+      "bytes": 1297,
+      "sha256": "7746878ea24105529371b221d3c4ef338c44e30821b34dbaa3f0a4e40a1f096b"
+    },
+    {
+      "status": "??",
+      "path": "server/sqlite.js",
+      "bytes": 1419,
+      "sha256": "4a95832b4a695f94610e875e60825a65be72ec40e761a54e9b03b7299568311e"
+    },
+    {
+      "status": "??",
+      "path": "server/supervisor.js",
+      "bytes": 8878,
+      "sha256": "669aa011d770aac8e7193c12d4c11e16fe7aaabee72a6cdcafee638b0b397f5a"
+    },
+    {
+      "status": "??",
+      "path": "server/time.js",
+      "bytes": 2682,
+      "sha256": "ff74499100956feb7f733d7efadd883fd82f1da42a3bf5003d2f5407b53a6f88"
+    },
+    {
+      "status": "??",
+      "path": "shared/csv.mjs",
+      "bytes": 3877,
+      "sha256": "2dda58d2fc5a09189ae128b4ab63230ff57362535f998a899c473fe26c09b10a"
+    },
+    {
+      "status": "??",
+      "path": "src/components/AuthGate.jsx",
+      "bytes": 2944,
+      "sha256": "1e645641f868afcb1ff2f5b65fda604404dbabc9d67ab3f95d41dca763921882"
+    },
+    {
+      "status": "??",
+      "path": "src/components/QueueUI.jsx",
+      "bytes": 1569,
+      "sha256": "129a2134b365a8f1e334915dba5863781360eadf5dba4efdb585f8698e6c437c"
+    },
+    {
+      "status": "??",
+      "path": "src/lib/api.js",
+      "bytes": 1257,
+      "sha256": "5d79458fe86e4351b0068783c48ab1b4d043f2d7d3018e7c2eefffff3d68d7fc"
+    },
+    {
+      "status": "??",
+      "path": "src/lib/presentation.js",
+      "bytes": 1082,
+      "sha256": "b76d77daddac7c6856f823c7af8c2ebbf26708af9a51d84f7643c556edbd91b9"
+    },
+    {
+      "status": "??",
+      "path": "test/api.test.cjs",
+      "bytes": 6890,
+      "sha256": "0805051112e19d8868eb688ef0959e6b9124771cb436f725c81c153766b3e69a"
+    },
+    {
+      "status": "??",
+      "path": "test/autonomy-worker.cjs",
+      "bytes": 4022,
+      "sha256": "353cd299f97cc0869c0c2b4ff64725f3aa140039d2b744816e1a182ac97dbca8"
+    },
+    {
+      "status": "??",
+      "path": "test/autonomy.test.cjs",
+      "bytes": 10595,
+      "sha256": "da62b9c5d4aae6f6284f6386007a4c3b090a595aec572f73939c3a5b0607a01d"
+    },
+    {
+      "status": "??",
+      "path": "test/browser/campaign.spec.cjs",
+      "bytes": 11274,
+      "sha256": "27ba9fea86be4a0d0c83f9ec8d4d23c968575c8cfbbc5b68c38540d75833e5c8"
+    },
+    {
+      "status": "??",
+      "path": "test/browser/server.cjs",
+      "bytes": 1033,
+      "sha256": "c3024b15de4e093410716c7bd7bf296fdf5c57132d0a3eff02b640feaa329618"
+    },
+    {
+      "status": "??",
+      "path": "test/connection.test.cjs",
+      "bytes": 11692,
+      "sha256": "3b1ff56481fae42ef675426592ae16ea4248091198c58475634bf21dd8fd795d"
+    },
+    {
+      "status": "??",
+      "path": "test/flows.test.cjs",
+      "bytes": 12717,
+      "sha256": "f1fb9718d31b707f137bea1f6f19acd8175e0e63c4aafcd0487aac95231e2c74"
+    },
+    {
+      "status": "??",
+      "path": "test/helpers.cjs",
+      "bytes": 3216,
+      "sha256": "d4ea88be133e44e6d76a9483d89d552f75c4d1b3d57d8c298e63ba9295cd0a28"
+    },
+    {
+      "status": "??",
+      "path": "test/process-worker.cjs",
+      "bytes": 3273,
+      "sha256": "a9d6f348967508a79128b480bb497d1029cbb27f7308daf28f567b10bf4d4ea8"
+    },
+    {
+      "status": "??",
+      "path": "test/process.test.cjs",
+      "bytes": 10598,
+      "sha256": "9a11e6e76ec8334a41dd434f778695ad87965901bcb348610356dddeb4b52ea4"
+    },
+    {
+      "status": "??",
+      "path": "test/queue.test.cjs",
+      "bytes": 16710,
+      "sha256": "9013fe8c8e1cbbb09bbec4184f720b079e343e82c0efc026bc995508d4678fbf"
+    },
+    {
+      "status": "??",
+      "path": "test/runtime.test.cjs",
+      "bytes": 5842,
+      "sha256": "9543580b4bfda5ede3903f8efbbd22216b35cad311214206367eeb2176fa9abf"
+    },
+    {
+      "status": "??",
+      "path": "test/storage.test.cjs",
+      "bytes": 5484,
+      "sha256": "1839aafcd4dd63ed483a92b801ee38d545bfa926bb1e6fd7b83e45fb7cc88321"
+    },
+    {
+      "status": "??",
+      "path": "test/supervisor-failure.cjs",
+      "bytes": 123,
+      "sha256": "0bedb0e00117a8dfc2940e42e0c7cf79c96271edaa4040c62adedc899340900d"
+    },
+    {
+      "status": "??",
+      "path": "test/supervisor-runner.cjs",
+      "bytes": 930,
+      "sha256": "06789f6a3d910c946ec03827cc2ccfb6d20887ead2fdfd932941ac53ec069feb"
+    },
+    {
+      "status": "??",
+      "path": "test/supervisor.test.cjs",
+      "bytes": 10177,
+      "sha256": "e5a7c6fc0519f477efe958c3fed51f84b805336a4fc6da59b4ad7305a2ec0f05"
+    },
+    {
+      "status": "??",
+      "path": "test/windows-task.ps1",
+      "bytes": 5157,
+      "sha256": "121f99c62114888661348efdac6dee711896e7e3666a92dd87a98956b32b9bb7"
+    }
+  ]
+}

@@ -1,0 +1,107 @@
+
+> wappgr@1.0.0 pretest
+> npm run build
+
+
+> wappgr@1.0.0 build
+> vite build
+
+vite v8.2.2 building client environment for production...
+transforming...
+✓ 2392 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                   1.38 kB │ gzip:   0.79 kB
+dist/assets/index-nUeGHoqn.css   47.00 kB │ gzip:   8.26 kB
+dist/assets/index-C7vkvahq.js   678.50 kB │ gzip: 196.96 kB
+
+✓ built in 682ms
+
+> wappgr@1.0.0 test
+> node --test --test-concurrency=1 test/*.test.cjs
+
+✔ API protegida, CSRF/CORS, webhook desabilitado, idempotência e simuladores isolados (321.3827ms)
+✔ API: proteção de todos os módulos, webhook preserva opt-out e métricas distinguem falha/envio/entrega (269.1734ms)
+✔ backend real: campanha continua sem conexões HTTP e após expirar login; cron, entrada e fluxo são autônomos (4070.8607ms)
+✔ operação: rotação mantém quantidade limitada de logs e conteúdo JSON (56.1944ms)
+✔ operação Windows: PowerShell possui sintaxe válida e preparação não registra tarefa (742.7685ms)
+✔ conexão: inicializações repetidas compartilham socket e logout cancela inicialização pendente (30.5376ms)
+✔ conexão: logout aguarda gravação de credenciais simuladas sem recriar autenticação depois (2.6211ms)
+✔ Baileys integrado: campanha fora de 24h, entrada deduplicada, opt-out e restrição após reconexão (43.9679ms)
+✔ Baileys integrado: erro de rede conserva resultado incerto sem retry (12.9062ms)
+✔ Baileys: parada controlada fecha socket sem logout e preserva credenciais (9.2098ms)
+✔ Baileys: falha transitória de inicialização reconecta sem operador e restrição impede reconexão automática (123.2235ms)
+✔ fluxo: categoria, fim vazio, deduplicação e atraso único (14.9188ms)
+✔ fluxo: continuidade recuperada, desativação interrompe, exclusão remove sessão (9.4341ms)
+✔ fluxo: rejeita destinos e ciclos automáticos, permite retorno interativo (8.7537ms)
+✔ campanha, cron, fluxo e chat atravessam a mesma cadência (37.5009ms)
+✔ Cloud API preparado: 24h, template aprovado, erro incerto, restrição e recibo (1.6184ms)
+✔ CSV: barra vertical, aspas, separadores, multilinha e roundtrip de consentimento (11.8073ms)
+✔ janela por destinatário: entrada antiga não renova 24h após reinício nem com envio humano (7.6225ms)
+✔ entrada aguardando processamento conserva instante recebido e autorização antiga não revoga opt-out (8.6256ms)
+✔ transporte Baileys: mídia usa preflight após download e preserva classificação de falha (21.0475ms)
+✔ processo real: pausa após 17, SIGKILL, recuperação pausada e saldo 23 (550.4822ms)
+✔ processo real: pausa com chamada em andamento, sem confirmação prematura (182.5957ms)
+✔ processo real: queda durante chamada deixa incerto sem reenvio (292.649ms)
+✔ processo real: provedor aceitou, SIGKILL antes do commit, reconciliação por ID (297.6183ms)
+✔ processo real: cadência reservada antes da rede e renovada ao recuperar envio interrompido (282.8304ms)
+✔ processo real: reiniciar intervalo preserva horário e não compensa lotes (576.44ms)
+✔ processo real: desconexão, comandos repetidos, opt-out e reconexão (222.57ms)
+✔ processo real: worker continua sem navegador e segunda instância é recusada (623.7121ms)
+✔ processo real: restrição permanece após SIGKILL, 24h e reconexão até revisão explícita (324.8573ms)
+✔ 1000 contatos: 25 lotes, 24 intervalos medidos após término e nenhuma espera final (4877.9125ms)
+✔ pausa no 17 preserva o saldo de 23, sem reenviar confirmados (77.7034ms)
+✔ pausa com chamada em voo só confirma pausa após resultado (10.6576ms)
+✔ pausar intervalo e retomar não antecipa horário mínimo (72.7605ms)
+✔ modo manual exige autorização independente de continuar e do relógio (14.1226ms)
+✔ desconexão não consome tentativas; reconexão respeita pausa (18.5455ms)
+✔ recepção de opt-out tem prioridade e impede destinatário pendente (11.019ms)
+✔ exclusão e alteração de identidade não redirecionam a audiência (11.0045ms)
+✔ criação e comandos idempotentes com associação ao conteúdo (10.0085ms)
+✔ duas aquisições do mesmo trabalho não geram chamada duplicada (8.5464ms)
+✔ recuperação marca chamada interrompida incerta e recibo reconcilia (9.3872ms)
+✔ retry transitório consome vaga, respeita backoff e limite do lote (12.7237ms)
+✔ retry seletivo adiciona uma tentativa limitada e preserva histórico (11.0126ms)
+✔ resultado incerto e falha permanente nunca recebem retry automático (16.6292ms)
+✔ cancelamento preserva sucessos e impede novos envios (13.7847ms)
+✔ campanha e respostas compartilham uma chamada e cadência global (23.0093ms)
+✔ filtro acima de 10000, exclusões, ordenação e snapshot congelado (312.0652ms)
+✔ ONCE cria execução rastreável uma vez e desativa regra (10.7428ms)
+✔ recorrência alternada usa calendário e limita recuperação de atrasos (9.2412ms)
+✔ reimportação e cadastro não inventam autorização (8.8685ms)
+✔ recibos são necessários para entrega e leitura, nunca deduzidos do envio (9.2576ms)
+✔ restrição de conta persiste além de 24h e exige revisão mais continuação (13.1109ms)
+✔ mudança de telefone não transfere autorização ou janela, e conserva recusa explícita (7.4729ms)
+✔ seleção malformada não amplia audiência silenciosamente (8.7379ms)
+✔ recibo durante chamada mantém pausa solicitada até retorno real (9.9829ms)
+✔ campanha criada durante restrição também exige revisão e continuação manual (8.3682ms)
+✔ opt-out atrás de outras entradas é processado antes do destinatário pendente (32.8036ms)
+✔ execução real: setup-admin, servidor Node, sessão HTTP e pareamento isolado preservado (716.5781ms)
+✔ CLI de restauração conserva evidência, bloqueia filas e exige reconciliação de trabalhos posteriores ao backup (423.7581ms)
+Backup consistente criado: C:\Users\Suki\AppData\Local\Temp\wappgr-storage-YJBD1n\backups\before-v2-1792158331188-9c525a70-5d15-408a-a6a2-1d63298ba2b3.sqlite
+Backup consistente criado: C:\Users\Suki\AppData\Local\Temp\wappgr-storage-YJBD1n\backups\before-v2-1792158331219-0634059c-babd-44bc-b111-fde1eaabe54a.sqlite
+Backup consistente criado: C:\Users\Suki\AppData\Local\Temp\wappgr-upgrade-2gaSd6\backups\before-v2-1792158331523-270c03e2-d7d6-4fa9-812e-da70b8243f6e.sqlite
+✔ Node SQLite: bindings, transactions, savepoints, rollback e foreign keys (12.9084ms)
+✔ migração com WAL: backup consistente, legado preservado, restauração e reabertura (222.5928ms)
+✔ migração v1 para v2 preserva contagem antiga e reconcilia somente mensagens comprovadas (247.9424ms)
+✔ migração conserva comandos textuais de descadastro e remove apenas opções numéricas (6.6435ms)
+✔ supervisor real: terminal iniciador encerra, backend segue; reinício sem replay, instância única e parada persistente (2201.7886ms)
+✔ supervisor: falhas usam espera progressiva e limite persistente; configuração inválida não reinicia em loop (1282.1767ms)
+✔ supervisor: parada durante envio preserva resultado incerto e retomada não repete o destinatário (3651.3636ms)
+✔ configuração: .env explícito e caminhos relativos são resolvidos pela raiz mesmo fora do projeto (79.5264ms)
+ℹ tests 66
+ℹ suites 0
+ℹ pass 66
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 24460.6802
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - ESM syntax in a file loaded as CommonJS (vite.config.js:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+[plugin builtin:vite-reporter] 
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rolldownOptions.output.codeSplitting to improve chunking: https://rolldown.rs/reference/OutputOptions.codeSplitting
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.

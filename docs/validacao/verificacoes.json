@@ -1,0 +1,101 @@
+{
+  "date": "2026-10-16",
+  "node": "v24.19.0",
+  "npm": "11.17.0",
+  "platform": "win32",
+  "whatsappMode": "synthetic-only; production transport not initialized",
+  "commands": [
+    {
+      "command": "npm run lint",
+      "started": "2026-10-16T13:45:12.193Z",
+      "finished": "2026-10-16T13:45:12.588Z",
+      "durationMs": 394,
+      "exitCode": 0,
+      "signal": null,
+      "log": "lint.txt"
+    },
+    {
+      "command": "npm test",
+      "started": "2026-10-16T13:45:12.590Z",
+      "finished": "2026-10-16T13:45:38.873Z",
+      "durationMs": 26283,
+      "exitCode": 0,
+      "signal": null,
+      "log": "testes.txt"
+    },
+    {
+      "command": "npm run build",
+      "started": "2026-10-16T13:31:30.066Z",
+      "finished": "2026-10-16T13:31:31.551Z",
+      "durationMs": 1485,
+      "exitCode": 0,
+      "signal": null,
+      "log": "build.txt"
+    },
+    {
+      "command": "npm run test:browser",
+      "started": "2026-10-16T13:31:31.552Z",
+      "finished": "2026-10-16T13:31:47.222Z",
+      "durationMs": 15670,
+      "exitCode": 0,
+      "signal": null,
+      "log": "navegador.txt"
+    }
+  ],
+  "testCount": 66,
+  "testPassed": 66,
+  "browserTestsPassed": 3,
+  "additionalChecks": [
+    {
+      "command": "npm run test:windows-task",
+      "started": "2026-10-16T13:49:01.031Z",
+      "finished": "2026-10-16T13:49:03.223Z",
+      "durationMs": 2192,
+      "exitCode": 0,
+      "signal": null,
+      "log": "windows-task.txt"
+    },
+    {
+      "command": "npm run service:install",
+      "started": "2026-10-16T13:49:03.223Z",
+      "finished": "2026-10-16T13:49:03.986Z",
+      "durationMs": 763,
+      "exitCode": 1,
+      "signal": null,
+      "log": "windows-install.txt"
+    },
+    {
+      "command": "npm run service:status",
+      "started": "2026-10-16T13:49:03.986Z",
+      "finished": "2026-10-16T13:49:05.725Z",
+      "durationMs": 1739,
+      "exitCode": 0,
+      "signal": null,
+      "log": "windows-status.txt"
+    },
+    {
+      "command": "node --test --test-name-pattern=operação Windows test/autonomy.test.cjs",
+      "started": "2026-10-16T13:49:00.131Z",
+      "finished": "2026-10-16T13:49:01.030Z",
+      "durationMs": 898,
+      "exitCode": 0,
+      "signal": null,
+      "log": "windows-preparacao.txt"
+    }
+  ],
+  "windowsTaskInstalled": false,
+  "windowsTaskXmlValidated": true,
+  "windowsTaskValidation": "Prepared and native XML validated only; SYSTEM lifecycle and Windows boot not tested: administrator rights unavailable.",
+  "visualInspection": {
+    "viewport": {
+      "width": 1440,
+      "height": 1100
+    },
+    "reviewedPreviously": [
+      "campanha-pausada17.png",
+      "chat-paginado.png",
+      "conta-restrita.png"
+    ],
+    "notes": "Telas existentes preservadas; três testes de navegador repetidos nesta entrega. Nova operação de sistema conferida por CLI e processos isolados."
+  }
+}

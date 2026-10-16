@@ -1,0 +1,14 @@
+
+> wappgr@1.0.0 test:browser
+> playwright test
+
+
+Running 3 tests using 1 worker
+
+  ok 1 test\browser\campaign.spec.cjs:2:1 › interface: login, criação, pausa no 17, recarga, retomada de saldo e cancelamento (4.6s)
+  ok 2 test\browser\campaign.spec.cjs:81:1 › interface: seleção entre páginas, exclusões, campanhas manuais e relatórios (3.0s)
+  ok 3 test\browser\campaign.spec.cjs:139:1 › interface: importação, fluxo, chat, agendamento, CRM e revisão da restrição (5.0s)
+
+  3 passed (14.8s)
+(node:6480) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)

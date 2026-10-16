@@ -1,0 +1,137 @@
+{
+  "date": "2026-10-16T12:52:55.500Z",
+  "scope": "Baileys exclusivo; Cloud API fora do escopo, arquivo preparatório preservado e inativo",
+  "activeEntry": "server/index.js -> server/baileys.js",
+  "cloudAdapter": {
+    "path": "server/cloud-api.js",
+    "unchangedFromPreviousManifest": true,
+    "sha256": "e8f255a72702da8b6a2a9a0b5631661c15f52a4784fcf6ebfbe9e7fcba132b3a",
+    "active": false
+  },
+  "changedFilesThisReview": [
+    "server/dispatcher.js",
+    "server/policy.js",
+    "server/app.js",
+    "src/components/ConnectionManager.jsx",
+    "src/components/LiveChat.jsx",
+    "src/components/Navbar.jsx",
+    ".env.example",
+    "README.md",
+    "docs/IMPLEMENTACAO_E_VALIDACAO.md",
+    "test/process.test.cjs",
+    "test/connection.test.cjs",
+    "test/api.test.cjs",
+    "test/browser/campaign.spec.cjs"
+  ],
+  "internal24HourPolicy": {
+    "promotional": "OPT_IN atual; sem janela de atendimento",
+    "humanReply": "entrada do cliente há menos de 24 horas OU OPT_IN",
+    "requestedFlow": "entrada há menos de 24 horas E ausência de OPT_OUT",
+    "consentReply": "entrada há menos de 24 horas",
+    "optOutConfirmation": "OPT_OUT atual",
+    "source": "server/policy.js; escolha interna WappGR, não exigência técnica Baileys"
+  },
+  "accountRestriction": "persistente; reinício, reconexão e passagem de 24 horas não liberam; revisão operacional e continuação de cada campanha necessárias",
+  "cadenceFix": "reserva transacional antes da rede, confirmação após retorno e espera conservadora após recuperar chamada interrompida; sem replay de incertos",
+  "validation": {
+    "automatedTests": 57,
+    "realProcessScenarios": 9,
+    "browserScenarios": 3,
+    "logs": [
+      "testes.txt",
+      "navegador.txt",
+      "lint.txt",
+      "build.txt"
+    ],
+    "actualTransportClassWithSyntheticSocket": true,
+    "realWhatsAppMessagesSent": false,
+    "productionPairingTouched": false,
+    "commands": [
+      {
+        "command": "npm run lint",
+        "started": "2026-10-16T12:51:50.752Z",
+        "finished": "2026-10-16T12:51:51.106Z",
+        "durationMs": 353,
+        "exitCode": 0,
+        "signal": null,
+        "log": "lint.txt"
+      },
+      {
+        "command": "npm test",
+        "started": "2026-10-16T12:51:51.107Z",
+        "finished": "2026-10-16T12:52:02.155Z",
+        "durationMs": 11048,
+        "exitCode": 0,
+        "signal": null,
+        "log": "testes.txt"
+      },
+      {
+        "command": "npm run build",
+        "started": "2026-10-16T12:49:17.177Z",
+        "finished": "2026-10-16T12:49:22.910Z",
+        "durationMs": 5733,
+        "exitCode": 0,
+        "signal": null,
+        "log": "build.txt"
+      },
+      {
+        "command": "npm run test:browser",
+        "started": "2026-10-16T12:49:22.910Z",
+        "finished": "2026-10-16T12:49:39.063Z",
+        "durationMs": 16153,
+        "exitCode": 0,
+        "signal": null,
+        "log": "navegador.txt"
+      }
+    ]
+  },
+  "database": {
+    "openedReadOnly": true,
+    "integrity": "ok",
+    "foreignKeyViolations": 0,
+    "migrations": [
+      {
+        "version": 1,
+        "applied_at": "2026-10-16T08:55:28.870Z"
+      },
+      {
+        "version": 2,
+        "applied_at": "2026-10-16T08:55:28.873Z"
+      }
+    ],
+    "counts": {
+      "leads": 0,
+      "categories": 6,
+      "campaigns": 2,
+      "messages": 17
+    },
+    "newMigrationRequired": false
+  },
+  "productionAuthDirectoryPresent": false,
+  "specificLimitations": [
+    "Pareamento, reconexão, mídia e recibos com conta real não exercitados por instrução do usuário.",
+    "Baileys pode não expor restrição inequívoca ou reenviar recibos perdidos; revisão operacional pode ser necessária.",
+    "Resultado incerto não é reenviado automaticamente e não tem resolução garantida.",
+    "Uma instalação, um processo, uma sessão principal; Node precisa permanecer ativo.",
+    "Instalação limpa e proxy foram validados anteriormente; dependências não mudaram nesta revisão."
+  ],
+  "activeServerModules": [
+    "server/app.js",
+    "server/auth.js",
+    "server/baileys.js",
+    "server/campaigns.js",
+    "server/db.js",
+    "server/dispatcher.js",
+    "server/domain.js",
+    "server/flows.js",
+    "server/index.js",
+    "server/instance-lock.js",
+    "server/leads.js",
+    "server/migrations.js",
+    "server/policy.js",
+    "server/scheduler.js",
+    "server/sqlite.js",
+    "server/time.js"
+  ],
+  "dependencyFilesUnchanged": true
+}

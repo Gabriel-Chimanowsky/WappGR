@@ -1,0 +1,212 @@
+{
+  "date": "2026-10-16T13:50:21.169Z",
+  "node": "v24.19.0",
+  "transport": "BAILEYS",
+  "alreadyExisted": [
+    "Persistent campaigns, batch balance and cadence",
+    "Consent and opt-out checks",
+    "Campaign recovery without automatic replay of uncertain results",
+    "Schedules, persistent flows and inbox deduplication",
+    "Authentication and Node SQLite migrations/backups"
+  ],
+  "implemented": [
+    "Backend lifecycle and autonomous runtime loops independent of HTTP sessions",
+    "Windows startup task scripts with absolute paths and SYSTEM identity; compiled production app",
+    "Node supervisor with persisted administrative stop, bounded progressive recovery and heartbeat watchdog",
+    "Rotating logs, protected /api/v1/health and local diagnostic files",
+    "IPC shutdown without logout; accepted credential updates drain before stop",
+    "Credential-directory mutex in addition to existing database and supervisor mutexes",
+    "Progressive Baileys reconnect and recognized transient bootstrap failures without operator",
+    "Bounded Windows file-sharing retries for atomic state replacement and graceful child cleanup on supervisor failure"
+  ],
+  "changedCodeFiles": [
+    "server/index.js",
+    "server/backend.js",
+    "server/config.js",
+    "server/runtime.js",
+    "server/supervisor.js",
+    "server/service-control.js",
+    "server/operations.js",
+    "server/baileys.js",
+    "server/app.js",
+    "server/backup.js",
+    "server/migrate.js",
+    "server/setup-admin.js",
+    "scripts/windows.ps1",
+    "package.json",
+    ".env.example",
+    ".gitignore"
+  ],
+  "tests": {
+    "total": 66,
+    "passed": 66,
+    "failed": 0,
+    "browserPassed": 3,
+    "commands": [
+      {
+        "command": "npm run lint",
+        "started": "2026-10-16T13:45:12.193Z",
+        "finished": "2026-10-16T13:45:12.588Z",
+        "durationMs": 394,
+        "exitCode": 0,
+        "signal": null,
+        "log": "lint.txt"
+      },
+      {
+        "command": "npm test",
+        "started": "2026-10-16T13:45:12.590Z",
+        "finished": "2026-10-16T13:45:38.873Z",
+        "durationMs": 26283,
+        "exitCode": 0,
+        "signal": null,
+        "log": "testes.txt"
+      },
+      {
+        "command": "npm run build",
+        "started": "2026-10-16T13:31:30.066Z",
+        "finished": "2026-10-16T13:31:31.551Z",
+        "durationMs": 1485,
+        "exitCode": 0,
+        "signal": null,
+        "log": "build.txt"
+      },
+      {
+        "command": "npm run test:browser",
+        "started": "2026-10-16T13:31:31.552Z",
+        "finished": "2026-10-16T13:31:47.222Z",
+        "durationMs": 15670,
+        "exitCode": 0,
+        "signal": null,
+        "log": "navegador.txt"
+      }
+    ],
+    "testFiles": [
+      "test/autonomy.test.cjs",
+      "test/autonomy-worker.cjs",
+      "test/supervisor.test.cjs",
+      "test/supervisor-runner.cjs",
+      "test/supervisor-failure.cjs",
+      "test/connection.test.cjs",
+      "test/runtime.test.cjs",
+      "test/process.test.cjs"
+    ],
+    "realProcessScenarios": [
+      "Initiator exited while supervisor/backend remain alive",
+      "Administrative session expired and HTTP connections closed during campaign",
+      "Schedule, inbound callback and delayed flow processed without frontend",
+      "Flow WAITING_REPLY does not repeat and disabling cancels pending jobs",
+      "Child SIGKILL restart without replay of a completed campaign",
+      "Administrative stop remains across a new supervisor launch",
+      "Stop during in-flight call, restart leaves one UNCERTAIN and sends other seven once",
+      "Bounded progressive recovery and persistent blocked invalid configuration",
+      "Existing nine queue/process recovery scenarios retained"
+    ],
+    "testTransport": "synthetic only; no production Baileys initialization"
+  },
+  "installation": {
+    "taskName": "WappGR-Backend",
+    "state": "NOT_INSTALLED",
+    "registered": false,
+    "installedByThisRun": false,
+    "administrator": false,
+    "preparedXml": "server/runtime/task.xml",
+    "nativeXmlValidated": true,
+    "windowsBootTested": false,
+    "systemTaskLifecycleTested": false,
+    "reason": "Sessão sem privilégios de Administrador: tarefa SYSTEM não registrada. XML e scripts preparados e testados.",
+    "commands": [
+      {
+        "command": "npm run test:windows-task",
+        "started": "2026-10-16T13:49:01.031Z",
+        "finished": "2026-10-16T13:49:03.223Z",
+        "durationMs": 2192,
+        "exitCode": 0,
+        "signal": null,
+        "log": "windows-task.txt"
+      },
+      {
+        "command": "npm run service:install",
+        "started": "2026-10-16T13:49:03.223Z",
+        "finished": "2026-10-16T13:49:03.986Z",
+        "durationMs": 763,
+        "exitCode": 1,
+        "signal": null,
+        "log": "windows-install.txt"
+      },
+      {
+        "command": "npm run service:status",
+        "started": "2026-10-16T13:49:03.986Z",
+        "finished": "2026-10-16T13:49:05.725Z",
+        "durationMs": 1739,
+        "exitCode": 0,
+        "signal": null,
+        "log": "windows-status.txt"
+      },
+      {
+        "command": "node --test --test-name-pattern=operação Windows test/autonomy.test.cjs",
+        "started": "2026-10-16T13:49:00.131Z",
+        "finished": "2026-10-16T13:49:01.030Z",
+        "durationMs": 898,
+        "exitCode": 0,
+        "signal": null,
+        "log": "windows-preparacao.txt"
+      }
+    ]
+  },
+  "cleanInstallation": "instalacao-background.json",
+  "database": {
+    "readOnly": true,
+    "integrity": "ok",
+    "foreignKeyViolations": 0,
+    "migrations": [
+      {
+        "version": 1,
+        "applied_at": "2026-10-16T08:55:28.870Z"
+      },
+      {
+        "version": 2,
+        "applied_at": "2026-10-16T08:55:28.873Z"
+      }
+    ],
+    "counts": {
+      "leads": 0,
+      "categories": 6,
+      "campaigns": 2,
+      "messages": 17
+    }
+  },
+  "newSchemaMigrationRequired": false,
+  "activeServerModules": [
+    "server/app.js",
+    "server/auth.js",
+    "server/backend.js",
+    "server/baileys.js",
+    "server/campaigns.js",
+    "server/config.js",
+    "server/db.js",
+    "server/dispatcher.js",
+    "server/domain.js",
+    "server/flows.js",
+    "server/index.js",
+    "server/instance-lock.js",
+    "server/leads.js",
+    "server/migrations.js",
+    "server/operations.js",
+    "server/policy.js",
+    "server/runtime.js",
+    "server/scheduler.js",
+    "server/sqlite.js",
+    "server/time.js"
+  ],
+  "cloudPreparatoryFilePreserved": true,
+  "productionAuthDirectoryPresent": false,
+  "productionWhatsAppMessagesSent": 0,
+  "productionPairingTouched": false,
+  "limitations": [
+    "Production Windows task must be registered and started by Administrator; absent confirmed by final query.",
+    "SYSTEM filesystem permissions, no-user-login execution and actual reboot were not exercised.",
+    "PC off/asleep and unavailable internet prevent sending; power settings unchanged.",
+    "Real pairing, network reconnection, media and WhatsApp receipts were not exercised.",
+    "Uncertain results may need operational review; no exactly-once guarantee."
+  ]
+}

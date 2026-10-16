@@ -1,0 +1,68 @@
+{
+  "date": "2026-10-16T13:33:01.288Z",
+  "node": "v24.19.0",
+  "directory": "C:\\xampp\\htdocs\\WappGR\\.npm-cache\\install-background-iDGhKX",
+  "steps": [
+    {
+      "command": "npm ci --offline --cache C:\\xampp\\htdocs\\WappGR\\.npm-cache --no-audit --no-fund",
+      "exitCode": 0,
+      "durationMs": 46769
+    },
+    {
+      "command": "npm run build",
+      "exitCode": 0,
+      "durationMs": 6677
+    }
+  ],
+  "whatsappDisabled": true,
+  "imports": {
+    "baileys": "function",
+    "sqlite": "3.53.3"
+  },
+  "http": {
+    "frontend": 200,
+    "unauthenticatedHealth": 401,
+    "session": {
+      "authenticated": false,
+      "needsSetup": true
+    }
+  },
+  "health": {
+    "pid": 11952,
+    "transport": "BAILEYS",
+    "startedAt": "2026-10-16T13:33:55.812Z",
+    "heartbeatAt": "2026-10-16T13:33:55.871Z",
+    "uptimeSeconds": 0,
+    "state": "RUNNING",
+    "connection": "DISCONNECTED",
+    "lastConnectionAt": null,
+    "nextReconnectAt": null,
+    "account": {
+      "restricted": false,
+      "reason": null,
+      "notBefore": null
+    },
+    "dispatcher": {
+      "busy": false,
+      "nextSendAt": null
+    },
+    "loops": {},
+    "suspensionReasons": [
+      {
+        "type": "DISCONNECTED",
+        "reason": "WhatsApp desconectado; nenhuma nova chamada iniciada"
+      }
+    ],
+    "activity": {
+      "lastMessageAt": null,
+      "lastAttemptAt": null,
+      "pendingInbox": 0,
+      "pendingJobs": 0,
+      "activeSchedules": 0,
+      "activeFlows": 0
+    }
+  },
+  "shutdownExitCode": 0,
+  "credentialsPreserved": true,
+  "locksReleased": true
+}

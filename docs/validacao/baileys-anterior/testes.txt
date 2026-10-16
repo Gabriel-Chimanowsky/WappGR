@@ -1,0 +1,72 @@
+
+> wappgr@1.0.0 test
+> node --test --test-concurrency=1 test/*.test.cjs
+
+✔ API protegida, CSRF/CORS, webhook desabilitado, idempotência e simuladores isolados (342.2731ms)
+✔ API: proteção de todos os módulos, webhook preserva opt-out e métricas distinguem falha/envio/entrega (265.8043ms)
+✔ conexão: inicializações repetidas compartilham socket e logout cancela inicialização pendente (33.4958ms)
+✔ conexão: logout aguarda gravação de credenciais simuladas sem recriar autenticação depois (3.4051ms)
+✔ Baileys integrado: campanha fora de 24h, entrada deduplicada, opt-out e restrição após reconexão (57.6277ms)
+✔ Baileys integrado: erro de rede conserva resultado incerto sem retry (17.1733ms)
+✔ fluxo: categoria, fim vazio, deduplicação e atraso único (14.0855ms)
+✔ fluxo: continuidade recuperada, desativação interrompe, exclusão remove sessão (9.1655ms)
+✔ fluxo: rejeita destinos e ciclos automáticos, permite retorno interativo (6.7557ms)
+✔ campanha, cron, fluxo e chat atravessam a mesma cadência (36.1243ms)
+✔ Cloud API preparado: 24h, template aprovado, erro incerto, restrição e recibo (1.1398ms)
+✔ CSV: barra vertical, aspas, separadores, multilinha e roundtrip de consentimento (10.115ms)
+✔ janela por destinatário: entrada antiga não renova 24h após reinício nem com envio humano (7.7601ms)
+✔ entrada aguardando processamento conserva instante recebido e autorização antiga não revoga opt-out (6.8717ms)
+✔ transporte Baileys: mídia usa preflight após download e preserva classificação de falha (18.6896ms)
+✔ processo real: pausa após 17, SIGKILL, recuperação pausada e saldo 23 (468.8764ms)
+✔ processo real: pausa com chamada em andamento, sem confirmação prematura (161.192ms)
+✔ processo real: queda durante chamada deixa incerto sem reenvio (244.2396ms)
+✔ processo real: provedor aceitou, SIGKILL antes do commit, reconciliação por ID (247.8726ms)
+✔ processo real: cadência reservada antes da rede e renovada ao recuperar envio interrompido (252.8714ms)
+✔ processo real: reiniciar intervalo preserva horário e não compensa lotes (671.2491ms)
+✔ processo real: desconexão, comandos repetidos, opt-out e reconexão (197.448ms)
+✔ processo real: worker continua sem navegador e segunda instância é recusada (460.3671ms)
+✔ processo real: restrição permanece após SIGKILL, 24h e reconexão até revisão explícita (277.6902ms)
+✔ 1000 contatos: 25 lotes, 24 intervalos medidos após término e nenhuma espera final (4531.619ms)
+✔ pausa no 17 preserva o saldo de 23, sem reenviar confirmados (69.9836ms)
+✔ pausa com chamada em voo só confirma pausa após resultado (10.2517ms)
+✔ pausar intervalo e retomar não antecipa horário mínimo (66.3833ms)
+✔ modo manual exige autorização independente de continuar e do relógio (13.3289ms)
+✔ desconexão não consome tentativas; reconexão respeita pausa (16.5977ms)
+✔ recepção de opt-out tem prioridade e impede destinatário pendente (11.8537ms)
+✔ exclusão e alteração de identidade não redirecionam a audiência (9.9345ms)
+✔ criação e comandos idempotentes com associação ao conteúdo (8.9721ms)
+✔ duas aquisições do mesmo trabalho não geram chamada duplicada (7.9083ms)
+✔ recuperação marca chamada interrompida incerta e recibo reconcilia (8.9821ms)
+✔ retry transitório consome vaga, respeita backoff e limite do lote (13.5493ms)
+✔ retry seletivo adiciona uma tentativa limitada e preserva histórico (10.6336ms)
+✔ resultado incerto e falha permanente nunca recebem retry automático (54.578ms)
+✔ cancelamento preserva sucessos e impede novos envios (18.4229ms)
+✔ campanha e respostas compartilham uma chamada e cadência global (20.5408ms)
+✔ filtro acima de 10000, exclusões, ordenação e snapshot congelado (272.9106ms)
+✔ ONCE cria execução rastreável uma vez e desativa regra (9.581ms)
+✔ recorrência alternada usa calendário e limita recuperação de atrasos (8.2272ms)
+✔ reimportação e cadastro não inventam autorização (7.1436ms)
+✔ recibos são necessários para entrega e leitura, nunca deduzidos do envio (8.6107ms)
+✔ restrição de conta persiste além de 24h e exige revisão mais continuação (12.0867ms)
+✔ mudança de telefone não transfere autorização ou janela, e conserva recusa explícita (7.4442ms)
+✔ seleção malformada não amplia audiência silenciosamente (7.303ms)
+✔ recibo durante chamada mantém pausa solicitada até retorno real (10.7722ms)
+✔ campanha criada durante restrição também exige revisão e continuação manual (8.654ms)
+✔ opt-out atrás de outras entradas é processado antes do destinatário pendente (37.0998ms)
+✔ execução real: setup-admin, servidor Node, sessão HTTP e pareamento isolado preservado (499.7496ms)
+✔ CLI de restauração conserva evidência, bloqueia filas e exige reconciliação de trabalhos posteriores ao backup (301.7821ms)
+Backup consistente criado: C:\Users\Suki\AppData\Local\Temp\wappgr-storage-x429UT\backups\before-v2-1792155121973-be1a11d6-07e7-4b93-8cea-0a25c8bd8a1f.sqlite
+Backup consistente criado: C:\Users\Suki\AppData\Local\Temp\wappgr-storage-x429UT\backups\before-v2-1792155122002-49fc1f02-6b50-4da9-ba7f-9dcbe76f14c2.sqlite
+Backup consistente criado: C:\Users\Suki\AppData\Local\Temp\wappgr-upgrade-MDEmJv\backups\before-v2-1792155122099-5d6dce0c-783f-4554-99a2-5c8e82aa0e13.sqlite
+✔ Node SQLite: bindings, transactions, savepoints, rollback e foreign keys (11.4438ms)
+✔ migração com WAL: backup consistente, legado preservado, restauração e reabertura (123.0231ms)
+✔ migração v1 para v2 preserva contagem antiga e reconcilia somente mensagens comprovadas (80.8378ms)
+✔ migração conserva comandos textuais de descadastro e remove apenas opções numéricas (7.3918ms)
+ℹ tests 57
+ℹ suites 0
+ℹ pass 57
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 10746.1035

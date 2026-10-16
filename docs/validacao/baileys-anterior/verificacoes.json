@@ -1,0 +1,60 @@
+{
+  "date": "2026-10-16",
+  "node": "v24.19.0",
+  "npm": "11.17.0",
+  "platform": "win32",
+  "whatsappMode": "synthetic-only; production transport not initialized",
+  "commands": [
+    {
+      "command": "npm run lint",
+      "started": "2026-10-16T12:51:50.752Z",
+      "finished": "2026-10-16T12:51:51.106Z",
+      "durationMs": 353,
+      "exitCode": 0,
+      "signal": null,
+      "log": "lint.txt"
+    },
+    {
+      "command": "npm test",
+      "started": "2026-10-16T12:51:51.107Z",
+      "finished": "2026-10-16T12:52:02.155Z",
+      "durationMs": 11048,
+      "exitCode": 0,
+      "signal": null,
+      "log": "testes.txt"
+    },
+    {
+      "command": "npm run build",
+      "started": "2026-10-16T12:49:17.177Z",
+      "finished": "2026-10-16T12:49:22.910Z",
+      "durationMs": 5733,
+      "exitCode": 0,
+      "signal": null,
+      "log": "build.txt"
+    },
+    {
+      "command": "npm run test:browser",
+      "started": "2026-10-16T12:49:22.910Z",
+      "finished": "2026-10-16T12:49:39.063Z",
+      "durationMs": 16153,
+      "exitCode": 0,
+      "signal": null,
+      "log": "navegador.txt"
+    }
+  ],
+  "testCount": 57,
+  "testPassed": 57,
+  "browserTestsPassed": 3,
+  "visualInspection": {
+    "viewport": {
+      "width": 1440,
+      "height": 1100
+    },
+    "reviewed": [
+      "campanha-pausada17.png",
+      "chat-paginado.png",
+      "conta-restrita.png"
+    ],
+    "notes": "Capturas renovadas com dados sintéticos. Chat identifica regra interna; conexão apresenta somente Baileys e restrição persistente. Nenhuma conta real usada."
+  }
+}

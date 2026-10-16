@@ -1,0 +1,2 @@
+# WappGR runs through Node/Vite. Apache must not expose the source, database or session files.
+Require all denied

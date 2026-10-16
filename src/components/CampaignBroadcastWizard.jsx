@@ -1,257 +1,721 @@
-import React, { useState } from 'react';
-import { 
-  Send, 
-  ShieldCheck, 
-  Users, 
-  Clock, 
-  Play, 
-  CheckCircle2, 
-  AlertCircle, 
-  Sparkles,
-  Layers,
-  History,
-  Info
-} from 'lucide-react';
-
-export default function CampaignBroadcastWizard({ 
-  campaigns, 
-  categories, 
-  leads, 
-  onSendCampaign 
+import { dateLabel } from "../lib/presentation";
+import { useState, useEffect, useRef } from "react";
+import { Send, Pause, Play, Download, RefreshCw } from "lucide-react";
+import { api, mutation, download } from "../lib/api";
+import { Field, Status, Pager } from "./QueueUI";
+const initial = {
+  title: "",
+  message: "",
+  batchSize: 40,
+  batchIntervalSeconds: 7200,
+  pacingSeconds: 10,
+  maxAttempts: 3,
+  mode: "AUTO",
+  startMode: "IMMEDIATE",
+  timezone: "America/Sao_Paulo",
+  startLocal: "",
+};
+export default function CampaignBroadcastWizard({
+  categories = [],
+  selection: externalSelection,
+  onClearSelection,
+  connection,
 }) {
-  const [form, setForm] = useState({
-    title: '',
-    categoryFilter: 'TODOS',
-    message: 'Olá {nome}! 🚀 Temos uma novidade incrível da categoria {categoria} preparada especialmente para você. Confira em nosso site!',
-    pacingSeconds: 10
-  });
-
-  const [isDispatching, setIsDispatching] = useState(false);
-  const [resultFeedback, setResultFeedback] = useState(null);
-
-  // Calculate target count
-  const eligibleLeads = leads.filter(l => {
-    if (l.status !== 'OPT_IN') return false; // Strictly OPT_IN
-    const catName = l.category_name || l.category || '';
-    if (form.categoryFilter !== 'TODOS' && catName !== form.categoryFilter) return false;
-    return true;
-  });
-
-  const handleInsertPlaceholder = (placeholder) => {
-    setForm(prev => ({
-      ...prev,
-      message: prev.message + ' ' + placeholder
-    }));
+  const [form, setForm] = useState(initial),
+    [categoryId, setCategory] = useState(""),
+    [preview, setPreview] = useState(null),
+    [campaigns, setCampaigns] = useState([]),
+    [currentId, setCurrentId] = useState(null),
+    [current, setCurrent] = useState(null),
+    [recipients, setRecipients] = useState(null),
+    [events, setEvents] = useState([]),
+    [page, setPage] = useState(1),
+    [filter, setFilter] = useState(""),
+    [checked, setChecked] = useState([]),
+    [busy, setBusy] = useState(false),
+    [error, setError] = useState(""),
+    [notice, setNotice] = useState(""),
+    [clock, setClock] = useState(() => Date.now());
+  const createRequest = useRef(null),
+    actionRequest = useRef(null),
+    offset = useRef(0);
+  const selection = externalSelection || {
+    type: "filters",
+    filters: { categoryId },
   };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!form.title || !form.message) return;
-
-    setIsDispatching(true);
-    setResultFeedback(null);
-
-    const res = await onSendCampaign(form);
-
-    setIsDispatching(false);
-    if (res && res.campaign) {
-      setResultFeedback(res.message);
-      setForm({
-        title: '',
-        categoryFilter: 'TODOS',
-        message: 'Olá {nome}! 🚀 Temos uma novidade incrível da categoria {categoria} preparada especialmente para você.',
-        pacingSeconds: 10
+  const selectionKey = JSON.stringify(selection);
+  const change = (name, value) => setForm((f) => ({ ...f, [name]: value }));
+  useEffect(() => {
+    let alive = true;
+    api("/campaigns/preview", {
+      method: "POST",
+      body: JSON.stringify({ selection: JSON.parse(selectionKey) }),
+    })
+      .then((p) => {
+        if (alive) setPreview(p);
+      })
+      .catch((e) => {
+        if (alive) setError(e.message);
       });
+    return () => {
+      alive = false;
+    };
+  }, [selectionKey]);
+  useEffect(() => {
+    let alive = true,
+      timer;
+    async function poll() {
+      try {
+        const list = await api("/campaigns");
+        if (alive) setCampaigns(list);
+        if (currentId) {
+          const [c, r, e] = await Promise.all([
+            api("/campaigns/" + currentId),
+            api(
+              "/campaigns/" +
+                currentId +
+                "/recipients?page=" +
+                page +
+                "&status=" +
+                filter,
+            ),
+            api("/campaigns/" + currentId + "/events"),
+          ]);
+          if (alive) {
+            offset.current = Date.parse(c.serverNow) - Date.now();
+            setCurrent(c);
+            setRecipients(r);
+            setEvents(e);
+          }
+        }
+      } catch (e) {
+        if (alive) setError(e.message);
+      } finally {
+        if (alive) timer = setTimeout(poll, 3000);
+      }
+    }
+    poll();
+    return () => {
+      alive = false;
+      clearTimeout(timer);
+    };
+  }, [currentId, page, filter]);
+  useEffect(() => {
+    const t = setInterval(() => setClock(Date.now() + offset.current), 1000);
+    return () => clearInterval(t);
+  }, []);
+  const refresh = async () => {
+    setCampaigns(await api("/campaigns"));
+    if (currentId) {
+      setCurrent(await api("/campaigns/" + currentId));
+      setRecipients(
+        await api(
+          "/campaigns/" +
+            currentId +
+            "/recipients?page=" +
+            page +
+            "&status=" +
+            filter,
+        ),
+      );
+      setEvents(await api("/campaigns/" + currentId + "/events"));
     }
   };
-
+  async function create(e) {
+    e.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      const body = { ...form, selection },
+        encoded = JSON.stringify(body);
+      if (createRequest.current?.encoded !== encoded)
+        createRequest.current = { encoded, key: crypto.randomUUID() };
+      const result = await mutation(
+        "/campaigns/send",
+        body,
+        "POST",
+        createRequest.current.key,
+      );
+      setCurrentId(result.campaign.id);
+      setCurrent(result.campaign);
+      setPage(1);
+      setNotice(result.message);
+      setForm(initial);
+      createRequest.current = null;
+      await refresh();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function control(action, body = {}) {
+    if (
+      action === "cancel" &&
+      !confirm("Cancelar os envios restantes? O histórico será preservado.")
+    )
+      return;
+    setBusy(true);
+    setError("");
+    try {
+      const encoded = JSON.stringify({ id: currentId, action, body });
+      if (actionRequest.current?.encoded !== encoded)
+        actionRequest.current = { encoded, key: crypto.randomUUID() };
+      const result = await mutation(
+        "/campaigns/" + currentId + "/" + action,
+        body,
+        "POST",
+        actionRequest.current.key,
+      );
+      setCurrent(result);
+      actionRequest.current = null;
+      setChecked([]);
+      await refresh();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  const estimatedBatches = preview
+    ? Math.ceil(preview.eligible / Math.max(1, Number(form.batchSize)))
+    : 0;
+  const estimate = preview
+    ? Math.max(
+        0,
+        (estimatedBatches - 1) * Number(form.batchIntervalSeconds) +
+          Math.max(0, preview.eligible - 1) *
+            Math.max(2, Number(form.pacingSeconds)),
+      )
+    : 0;
+  const remaining = current?.next_run_at
+    ? Math.max(0, Math.ceil((Date.parse(current.next_run_at) - clock) / 1000))
+    : 0;
+  const finished =
+    current &&
+    ["COMPLETED", "COMPLETED_WITH_FAILURES", "CANCELLED", "LEGACY"].includes(
+      current.execution_status,
+    );
   return (
-    <div className="p-8 space-y-8 max-w-7xl mx-auto">
-      {/* Header */}
-      <div>
-        <h1 className="text-xl font-bold text-white tracking-wide flex items-center gap-2">
-          <Send className="w-5 h-5 text-emerald-400" />
-          Central de Disparos em Massa (Broadcasting)
+    <div className="p-6 space-y-6 max-w-7xl mx-auto">
+      <header>
+        <h1 className="text-2xl font-bold flex gap-2 items-center">
+          <Send className="text-emerald-400" />
+          Campanhas em lotes
         </h1>
-        <p className="text-xs text-slate-400 mt-1">
-          Crie campanhas de mensagens em massa direcionadas exclusivamente para leads autorizados com controle de cadência anti-ban.
+        <p className="text-slate-400 mt-2">
+          Progresso salvo no servidor. Fechar o navegador não interrompe uma
+          execução automática.
         </p>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        {/* Formulário do Disparo (7 cols) */}
-        <div className="lg:col-span-7 space-y-6">
-          <form onSubmit={handleSubmit} className="p-6 rounded-2xl glass-panel border border-slate-800 space-y-5 text-xs">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h3 className="font-bold text-white text-sm flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-emerald-400" /> Nova Campanha de Disparo
-              </h3>
-              <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
-                <ShieldCheck className="w-3 h-3" /> Meta Compliance Active
-              </span>
-            </div>
-
-            {/* Título da Campanha */}
-            <div className="space-y-1">
-              <label className="font-semibold text-slate-300">Título Identificador da Campanha</label>
+      </header>
+      <p className="notice">
+        Conexão: <Status value={connection?.status || "DISCONNECTED"} /> · Lotes
+        e cadência controlam a operação; não garantem ausência de bloqueios.
+      </p>
+      {error && (
+        <p role="alert" className="error">
+          {error}
+        </p>
+      )}
+      {notice && (
+        <p role="status" className="notice">
+          {notice}
+        </p>
+      )}
+      <details className="panel" open={!currentId}>
+        <summary className="font-bold cursor-pointer">Criar campanha</summary>
+        <form className="space-y-5 mt-5" onSubmit={create}>
+          <div className="grid md:grid-cols-2 gap-4">
+            <Field label="Título">
               <input
-                type="text"
                 required
+                maxLength={200}
                 value={form.title}
-                onChange={(e) => setForm({ ...form, title: e.target.value })}
-                placeholder="Ex: Lançamento Coleção Outono / Promoção VIP"
-                className="w-full px-3.5 py-2.5 rounded-xl glass-input text-white"
+                onChange={(e) => change("title", e.target.value)}
               />
-            </div>
-
-            {/* Categoria Alvo */}
-            <div className="space-y-1">
-              <label className="font-semibold text-slate-300">Filtrar Público-Alvo por Categoria</label>
-              <select
-                value={form.categoryFilter}
-                onChange={(e) => setForm({ ...form, categoryFilter: e.target.value })}
-                className="w-full px-3.5 py-2.5 rounded-xl glass-input text-white bg-slate-900"
-              >
-                <option value="TODOS">Todas as Categorias (Todos os leads com Opt-in)</option>
-                {categories.map((cat) => (
-                  <option key={cat.id} value={cat.name}>{cat.name}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* Editor de Mensagem com Variáveis */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <label className="font-semibold text-slate-300">Conteúdo da Mensagem</label>
-                <div className="flex items-center gap-1 text-[10px]">
-                  <span className="text-slate-400">Inserir Tag:</span>
-                  <button
-                    type="button"
-                    onClick={() => handleInsertPlaceholder('{nome}')}
-                    className="px-2 py-0.5 rounded bg-slate-800 text-emerald-400 hover:bg-slate-700 font-mono"
-                  >
-                    {'{nome}'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleInsertPlaceholder('{categoria}')}
-                    className="px-2 py-0.5 rounded bg-slate-800 text-teal-400 hover:bg-slate-700 font-mono"
-                  >
-                    {'{categoria}'}
-                  </button>
-                </div>
+            </Field>
+            {externalSelection ? (
+              <div className="notice">
+                Seleção da tela de leads:{" "}
+                {externalSelection.type === "ids"
+                  ? externalSelection.ids.length + " contatos individuais"
+                  : "todos os resultados do filtro"}{" "}
+                · {externalSelection.excludedIds?.length || 0} exclusões.
+                <button
+                  type="button"
+                  className="btn mt-2"
+                  onClick={onClearSelection}
+                >
+                  Usar categoria
+                </button>
               </div>
-              <textarea
-                rows="4"
-                required
-                value={form.message}
-                onChange={(e) => setForm({ ...form, message: e.target.value })}
-                placeholder="Escreva sua mensagem aqui..."
-                className="w-full px-3.5 py-2.5 rounded-xl glass-input text-white resize-none"
-              ></textarea>
-            </div>
-
-            {/* Configuração de Pacing Anti-Ban */}
-            <div className="p-4 rounded-xl bg-slate-900/80 border border-slate-800 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="font-semibold text-slate-200 flex items-center gap-1.5">
-                  <Clock className="w-4 h-4 text-amber-400" /> Intervalo de Pacing Anti-Ban (Atraso entre envios)
-                </span>
-                <span className="font-bold text-emerald-400 font-mono">{form.pacingSeconds} segundos</span>
-              </div>
-              <input
-                type="range"
-                min="5"
-                max="30"
-                step="1"
-                value={form.pacingSeconds}
-                onChange={(e) => setForm({ ...form, pacingSeconds: parseInt(e.target.value) })}
-                className="w-full accent-emerald-500 cursor-pointer"
-              />
-              <p className="text-[10px] text-slate-400">
-                Garante variação humanizada entre cada mensagem disparada para proteger o número contra detecção de bot pelo WhatsApp.
-              </p>
-            </div>
-
-            {/* Card de Validação de Audiência */}
-            <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <Users className="w-5 h-5 text-emerald-400" />
-                <div>
-                  <p className="font-bold text-white text-xs">Leads Elegíveis (Opt-in Confirmado)</p>
-                  <p className="text-[10px] text-emerald-300/80">Esta mensagem será enviada somente para contatos autorizados.</p>
-                </div>
-              </div>
-              <span className="text-xl font-bold text-emerald-400 font-mono">
-                {eligibleLeads.length} leads
-              </span>
-            </div>
-
-            {/* Feedback */}
-            {resultFeedback && (
-              <div className="p-3 rounded-xl bg-emerald-500/20 border border-emerald-500 text-emerald-300 text-xs flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 flex-shrink-0" /> {resultFeedback}
-              </div>
+            ) : (
+              <Field label="Audiência por categoria">
+                <select
+                  value={categoryId}
+                  onChange={(e) => setCategory(e.target.value)}
+                >
+                  <option value="">Todas as categorias</option>
+                  {categories.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </Field>
             )}
-
-            <div className="pt-2 flex justify-end">
-              <button
-                type="submit"
-                disabled={isDispatching || eligibleLeads.length === 0}
-                className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold text-xs shadow-lg transition-all ${
-                  isDispatching || eligibleLeads.length === 0
-                    ? 'bg-slate-800 text-slate-500 cursor-not-allowed'
-                    : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-emerald-500/20'
-                }`}
-              >
-                {isDispatching ? (
-                  <>Disparando Lote...</>
-                ) : (
-                  <>
-                    <Play className="w-4 h-4 fill-slate-950" /> Iniciar Disparo para {eligibleLeads.length} Leads
-                  </>
-                )}
-              </button>
-            </div>
-          </form>
-        </div>
-
-        {/* Painel Direito: Histórico de Campanhas (5 cols) */}
-        <div className="lg:col-span-5 space-y-4">
-          <div className="p-6 rounded-2xl glass-panel border border-slate-800 space-y-4">
-            <h3 className="font-bold text-white text-sm flex items-center gap-2 border-b border-slate-800 pb-3">
-              <History className="w-4 h-4 text-emerald-400" /> Histórico de Disparos Efetuados
-            </h3>
-
-            <div className="space-y-3">
-              {campaigns.length === 0 ? (
-                <p className="text-xs text-slate-500 text-center py-6">Nenhuma campanha realizada ainda.</p>
-              ) : (
-                campaigns.map((camp) => (
-                  <div key={camp.id} className="p-4 rounded-xl bg-slate-900/80 border border-slate-800 space-y-2 text-xs">
-                    <div className="flex items-center justify-between font-bold text-white">
-                      <span>{camp.title}</span>
-                      <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 text-[10px]">
-                        {camp.status}
-                      </span>
-                    </div>
-
-                    <p className="text-[11px] text-slate-300 line-clamp-2 italic">
-                      "{camp.message}"
-                    </p>
-
-                    <div className="flex items-center justify-between text-[10px] text-slate-400 pt-2 border-t border-slate-800/60">
-                      <span>Alvo: {camp.category_filter || camp.categoryFilter || 'TODOS'}</span>
-                      <span className="font-semibold text-emerald-400">
-                        {camp.sent_count ?? camp.sentCount ?? 0} / {camp.total_target ?? camp.totalTarget ?? 0} entregues
-                      </span>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
           </div>
-        </div>
+          <div className="notice">
+            {preview ? (
+              <>
+                <strong>{preview.selected}</strong> selecionados ·{" "}
+                <strong className="text-emerald-400">
+                  {preview.eligible} elegíveis
+                </strong>{" "}
+                · {preview.excluded} excluídos
+                <div className="text-xs mt-2">
+                  Sem opt-in: {preview.reasons.notOptedIn} · Identidade
+                  inválida: {preview.reasons.invalidIdentity} · Exclusão manual:{" "}
+                  {preview.reasons.excludedByOperator} · Duplicados:{" "}
+                  {preview.reasons.duplicate} · Ausentes:{" "}
+                  {preview.reasons.missing}
+                </div>
+              </>
+            ) : (
+              "Calculando audiência no servidor…"
+            )}
+          </div>
+          <Field label="Mensagem (texto)">
+            <textarea
+              required
+              maxLength={10000}
+              value={form.message}
+              onChange={(e) => change("message", e.target.value)}
+            />
+          </Field>
+          <div className="flex gap-2">
+            {["{nome}", "{categoria}", "{telefone}"].map((v) => (
+              <button
+                type="button"
+                className="btn"
+                key={v}
+                onClick={() => change("message", form.message + v)}
+              >
+                {v}
+              </button>
+            ))}
+          </div>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <Field label="Tentativas por lote (1–200)">
+              <input
+                type="number"
+                min="1"
+                max="200"
+                required
+                value={form.batchSize}
+                onChange={(e) => change("batchSize", Number(e.target.value))}
+              />
+            </Field>
+            <Field label="Intervalo entre lotes (segundos)">
+              <input
+                type="number"
+                min="60"
+                max="604800"
+                required
+                value={form.batchIntervalSeconds}
+                onChange={(e) =>
+                  change("batchIntervalSeconds", Number(e.target.value))
+                }
+              />
+              <small>7.200 segundos = duas horas</small>
+            </Field>
+            <Field label="Entre mensagens (segundos)">
+              <input
+                type="number"
+                min="1"
+                max="300"
+                required
+                value={form.pacingSeconds}
+                onChange={(e) =>
+                  change("pacingSeconds", Number(e.target.value))
+                }
+              />
+              <small>Mínimo global efetivo: 2 segundos</small>
+            </Field>
+            <Field label="Tentativas automáticas por contato">
+              <input
+                type="number"
+                min="1"
+                max="5"
+                value={form.maxAttempts}
+                onChange={(e) => change("maxAttempts", Number(e.target.value))}
+              />
+            </Field>
+            <Field label="Modo">
+              <select
+                value={form.mode}
+                onChange={(e) => change("mode", e.target.value)}
+              >
+                <option value="AUTO">Automático</option>
+                <option value="MANUAL">Autorizar cada próximo lote</option>
+              </select>
+            </Field>
+            <Field label="Início">
+              <select
+                value={form.startMode}
+                onChange={(e) => change("startMode", e.target.value)}
+              >
+                <option value="IMMEDIATE">
+                  Assim que as condições permitirem
+                </option>
+                <option value="SCHEDULED">Agendado</option>
+                <option value="DRAFT">Salvar rascunho</option>
+              </select>
+            </Field>
+            <Field label="Fuso horário">
+              <input
+                required
+                value={form.timezone}
+                onChange={(e) => change("timezone", e.target.value)}
+              />
+            </Field>
+            {form.startMode === "SCHEDULED" && (
+              <Field label="Data e hora no fuso informado">
+                <input
+                  type="datetime-local"
+                  required
+                  value={form.startLocal}
+                  onChange={(e) => change("startLocal", e.target.value)}
+                />
+              </Field>
+            )}
+          </div>
+          <p className="notice">
+            Estimativa sem falhas: {estimatedBatches} lotes,{" "}
+            {Math.max(0, estimatedBatches - 1)} intervalos, aproximadamente{" "}
+            {(estimate / 3600).toFixed(1)} horas. A estimativa não inclui
+            latência, outras filas, desconexões nem espera por autorização.
+            Retries consomem vagas do lote. A lista e o texto ficam congelados
+            ao salvar.
+          </p>
+          <button className="btn primary" disabled={busy || !preview?.eligible}>
+            {busy ? "Salvando…" : "Salvar campanha"}
+          </button>
+        </form>
+      </details>
+      <div className="grid lg:grid-cols-[270px_1fr] gap-5">
+        <aside className="panel space-y-3">
+          <h2 className="font-bold">Campanhas recentes</h2>
+          <button
+            className="btn w-full"
+            onClick={() => {
+              setCurrentId(null);
+              setCurrent(null);
+            }}
+          >
+            Nova campanha
+          </button>
+          {campaigns.map((c) => (
+            <button
+              className={
+                "w-full text-left rounded-lg p-3 border " +
+                (c.id === currentId
+                  ? "border-emerald-500 bg-emerald-950/30"
+                  : "border-slate-700")
+              }
+              key={c.id}
+              onClick={() => {
+                setCurrentId(c.id);
+                setCurrent(c);
+                setPage(1);
+                setChecked([]);
+              }}
+            >
+              <strong className="block mb-2">{c.title}</strong>
+              <Status value={c.execution_status} />
+              <p className="text-xs mt-2 text-slate-400">
+                {c.legacy
+                  ? "Dados individuais indisponíveis"
+                  : c.sent + " / " + c.total_target + " enviados"}
+              </p>
+            </button>
+          ))}
+        </aside>
+        {current ? (
+          <section className="panel space-y-5 min-w-0">
+            <header className="flex justify-between gap-2">
+              <div>
+                <h2 className="text-xl font-bold">{current.title}</h2>
+                <Status value={current.execution_status} />
+              </div>
+              <button
+                className="btn"
+                aria-label="Atualizar campanha"
+                onClick={() => refresh().catch((e) => setError(e.message))}
+              >
+                <RefreshCw size={16} />
+              </button>
+            </header>
+            {current.legacy ? (
+              <p className="notice">
+                Campanha antiga preservada. Não há registros individuais
+                suficientes para retomada ou confirmação de entrega.
+              </p>
+            ) : (
+              <>
+                {current.reason && <p className="notice">{current.reason}</p>}
+                <progress
+                  className="w-full accent-emerald-500"
+                  max={current.total_target || 1}
+                  value={current.total_target - current.pending}
+                />
+                <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+                  {[
+                    ["Previstos", current.total_target],
+                    ["Aceitos pelo provedor", current.sent],
+                    ["Entregues", current.delivered],
+                    ["Lidos", current.read],
+                    ["Pendentes", current.pending],
+                    ["Falhas", current.counts.FAILED || 0],
+                    ["Ignorados", current.counts.SKIPPED || 0],
+                    ["Incertos", current.counts.UNCERTAIN || 0],
+                  ].map(([label, value]) => (
+                    <div className="rounded-xl bg-slate-800 p-3" key={label}>
+                      <p className="text-xs text-slate-400">{label}</p>
+                      <strong className="text-xl">{value}</strong>
+                    </div>
+                  ))}
+                </div>
+                <div className="notice space-y-2">
+                  <p>
+                    Lote {current.batch?.number || 0} ·{" "}
+                    {current.batch?.attempts || 0} / {current.config.batchSize}{" "}
+                    tentativas · saldo{" "}
+                    {current.batch?.status === "OPEN"
+                      ? current.config.batchSize - current.batch.attempts
+                      : 0}{" "}
+                    · total de tentativas: {current.attempts}
+                  </p>
+                  <p>
+                    Próximo horário mínimo:{" "}
+                    {dateLabel(current.next_run_at, current.config.timezone)} (
+                    {current.config.timezone})
+                    {remaining > 0
+                      ? " · falta " +
+                        Math.floor(remaining / 3600) +
+                        "h " +
+                        Math.floor((remaining % 3600) / 60) +
+                        "min " +
+                        (remaining % 60) +
+                        "s"
+                      : ""}
+                  </p>
+                  <p>
+                    Retomar mantém o saldo e o horário mínimo. Autorizar um lote
+                    não antecipa esse horário.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {current.execution_status === "DRAFT" && (
+                    <button
+                      className="btn primary"
+                      disabled={busy}
+                      onClick={() => control("start")}
+                    >
+                      Iniciar
+                    </button>
+                  )}
+                  {!finished &&
+                    current.execution_status !== "DRAFT" &&
+                    !current.manual_paused &&
+                    !current.cancel_requested && (
+                      <button
+                        className="btn"
+                        disabled={busy}
+                        onClick={() => control("pause")}
+                      >
+                        <Pause size={14} className="inline mr-1" />
+                        Pausar
+                      </button>
+                    )}
+                  {!!current.manual_paused &&
+                    !finished &&
+                    !current.cancel_requested && (
+                      <button
+                        className="btn primary"
+                        disabled={
+                          busy ||
+                          current.execution_status === "PAUSE_REQUESTED" ||
+                          !!connection?.account?.restricted
+                        }
+                        onClick={() => control("resume")}
+                      >
+                        <Play size={14} className="inline mr-1" />
+                        Continuar
+                      </button>
+                    )}
+                  {!!current.awaiting_authorization &&
+                    !current.manual_paused &&
+                    !finished && (
+                      <button
+                        className="btn"
+                        disabled={busy}
+                        onClick={() => control("authorize-next")}
+                      >
+                        Autorizar próximo lote
+                      </button>
+                    )}
+                  {!finished && !current.cancel_requested && (
+                    <button
+                      className="btn danger"
+                      disabled={busy}
+                      onClick={() => control("cancel")}
+                    >
+                      Cancelar restantes
+                    </button>
+                  )}
+                  <button
+                    className="btn"
+                    onClick={() =>
+                      download(
+                        "/campaigns/" + current.id + "/export",
+                        "campanha.csv",
+                      ).catch((e) => setError(e.message))
+                    }
+                  >
+                    <Download size={14} className="inline mr-1" />
+                    Exportar relatório
+                  </button>
+                </div>
+                {!!current.counts.UNCERTAIN && (
+                  <p className="notice">
+                    Resultado incerto: pode ter ocorrido envio antes da
+                    interrupção. Estes registros não serão reenviados
+                    automaticamente; recibos do provedor podem reconciliá-los.
+                  </p>
+                )}
+                <div className="flex gap-3 items-end">
+                  <Field label="Estado do destinatário">
+                    <select
+                      value={filter}
+                      onChange={(e) => {
+                        setFilter(e.target.value);
+                        setPage(1);
+                        setChecked([]);
+                      }}
+                    >
+                      <option value="">Todos</option>
+                      {[
+                        "PENDING",
+                        "SENT",
+                        "DELIVERED",
+                        "READ",
+                        "FAILED",
+                        "SKIPPED",
+                        "UNCERTAIN",
+                        "RETRY_WAIT",
+                        "CANCELLED",
+                      ].map((s) => (
+                        <option key={s} value={s}>
+                          {s}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  <button
+                    className="btn"
+                    disabled={busy || !checked.length}
+                    onClick={() => control("retry", { recipientIds: checked })}
+                  >
+                    Reprocessar {checked.length} falhas elegíveis
+                  </button>
+                </div>
+                <div className="overflow-auto max-h-[560px]">
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th>Retry</th>
+                        <th>Posição / contato</th>
+                        <th>Estado</th>
+                        <th>Tentativas</th>
+                        <th>Erro</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {recipients?.rows.map((r) => (
+                        <tr key={r.id}>
+                          <td>
+                            <input
+                              aria-label={
+                                "Selecionar falha de " + r.name_snapshot
+                              }
+                              type="checkbox"
+                              disabled={
+                                r.status !== "FAILED" ||
+                                !r.retryable ||
+                                r.attempts >= 5
+                              }
+                              checked={checked.includes(r.id)}
+                              onChange={(e) =>
+                                setChecked((v) =>
+                                  e.target.checked
+                                    ? [...v, r.id]
+                                    : v.filter((x) => x !== r.id),
+                                )
+                              }
+                            />
+                          </td>
+                          <td>
+                            {r.position}. {r.name_snapshot}
+                            <small className="block text-slate-400">
+                              {r.phone_snapshot}
+                            </small>
+                          </td>
+                          <td>
+                            <Status value={r.status} />
+                          </td>
+                          <td>{r.attempts}</td>
+                          <td className="max-w-xs break-words text-xs">
+                            {r.error || "—"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <Pager
+                  pagination={recipients?.pagination}
+                  onChange={setPage}
+                  busy={busy}
+                />
+                <details>
+                  <summary className="cursor-pointer font-semibold">
+                    Eventos recentes ({events.length})
+                  </summary>
+                  <div className="space-y-2 mt-3 max-h-72 overflow-auto">
+                    {events.map((e) => (
+                      <div
+                        className="text-xs border-b border-slate-800 py-2"
+                        key={e.id}
+                      >
+                        <strong>{e.kind}</strong> ·{" "}
+                        {dateLabel(e.created_at, current.config.timezone)} ·{" "}
+                        {e.actor}
+                        <p className="break-all text-slate-400">
+                          {JSON.stringify(e.details)}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </details>
+              </>
+            )}
+          </section>
+        ) : (
+          <div className="panel text-slate-400">
+            Selecione uma campanha para acompanhar os lotes e destinatários.
+          </div>
+        )}
       </div>
     </div>
   );

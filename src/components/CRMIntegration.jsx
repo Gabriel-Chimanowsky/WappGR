@@ -1,185 +1,158 @@
-import React, { useState } from 'react';
-import { 
-  Webhook, 
-  Key, 
-  Copy, 
-  Check, 
-  Send, 
-  Sparkles, 
-  Database, 
-  Code, 
-  Layers,
-  ExternalLink,
-  ShieldCheck
-} from 'lucide-react';
-
-export default function CRMIntegration({ webhooks, onSaveWebhooks }) {
-  const [apiKey, setApiKey] = useState(webhooks?.apiKey || 'wappgr_live_sec_9876543210abcdef');
-  const [outboundUrl, setOutboundUrl] = useState(webhooks?.outboundEventsUrl || 'https://seu-crm.com.br/webhooks/wappgr-events');
-  const [copiedKey, setCopiedKey] = useState(false);
-  const [copiedUrl, setCopiedUrl] = useState(false);
-
-  const inboundUrl = 'http://localhost:3001/api/v1/crm/webhook/lead';
-
-  // Live Tester State
-  const [testPayload, setTestPayload] = useState(JSON.stringify({
-    phone: "5511977889900",
-    name: "Fernando Vendas (Lead CRM)",
-    category: "Clientes VIP",
-    optInConfirmed: true,
-    notes: "Adicionado via Webhook n8n / checkout Kiwify"
-  }, null, 2));
-
-  const [testResult, setTestResult] = useState(null);
-  const [isTesting, setIsTesting] = useState(false);
-
-  const copyToClipboard = (text, setFn) => {
-    navigator.clipboard.writeText(text);
-    setFn(true);
-    setTimeout(() => setFn(false), 2000);
-  };
-
-  const handleTestWebhook = async () => {
-    setIsTesting(true);
-    setTestResult(null);
-    try {
-      const parsed = JSON.parse(testPayload);
-      const res = await fetch(inboundUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': apiKey
+import { useState, useEffect } from "react";
+import { api, mutation } from "../lib/api";
+import { Field } from "./QueueUI";
+export default function CRMIntegration() {
+  const [config, setConfig] = useState(null),
+    [base, setBase] = useState(""),
+    [secret, setSecret] = useState(""),
+    [error, setError] = useState(""),
+    [notice, setNotice] = useState(""),
+    [busy, setBusy] = useState(false),
+    [payload, setPayload] = useState(
+      JSON.stringify(
+        {
+          name: "Exemplo sintético",
+          phone: "+5511999999999",
+          optInConfirmed: false,
         },
-        body: JSON.stringify(parsed)
+        null,
+        2,
+      ),
+    );
+  useEffect(() => {
+    let live = true;
+    api("/crm/config")
+      .then((c) => {
+        if (live) {
+          setConfig(c);
+          setBase(c.publicBaseUrl);
+        }
+      })
+      .catch((e) => {
+        if (live) setError(e.message);
       });
-      const data = await res.json();
-      setTestResult({ status: res.status, data });
+    return () => {
+      live = false;
+    };
+  }, []);
+  async function act(fn) {
+    setBusy(true);
+    setError("");
+    try {
+      await fn();
     } catch (e) {
-      setTestResult({ error: 'Erro ao enviar payload JSON: ' + e.message });
+      setError(e.message);
+    } finally {
+      setBusy(false);
     }
-    setIsTesting(false);
-  };
-
+  }
+  const url = (base || window.location.origin) + "/api/v1/crm/webhook/lead";
   return (
-    <div className="p-8 space-y-8 max-w-7xl mx-auto">
-      {/* Header */}
-      <div>
-        <h1 className="text-xl font-bold text-white tracking-wide flex items-center gap-2">
-          <Webhook className="w-5 h-5 text-emerald-400" />
-          Integração CRM & Suite de Webhooks (CRM Ready)
-        </h1>
-        <p className="text-xs text-slate-400 mt-1">
-          Conecte o WappGR com qualquer CRM exterior (n8n, Typebot, HubSpot, ActiveCampaign, RD Station, Make).
+    <div className="p-6 space-y-5 max-w-4xl mx-auto">
+      <h1 className="text-2xl font-bold">Webhook de entrada CRM</h1>
+      {error && (
+        <p className="error" role="alert">
+          {error}
         </p>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        {/* Painel Esquerdo: Credenciais & URLs (7 cols) */}
-        <div className="lg:col-span-7 space-y-6">
-          {/* API Key */}
-          <div className="p-6 rounded-2xl glass-panel border border-slate-800 space-y-4">
-            <h3 className="font-bold text-white text-sm flex items-center gap-2 border-b border-slate-800 pb-3">
-              <Key className="w-4 h-4 text-amber-400" /> Autenticação API REST (Chave Secreta)
-            </h3>
-
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-300">Sua API Key do WappGR</label>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  readOnly
-                  value={apiKey}
-                  className="flex-1 px-3.5 py-2.5 rounded-xl glass-input text-xs text-emerald-400 font-mono"
-                />
-                <button
-                  onClick={() => copyToClipboard(apiKey, setCopiedKey)}
-                  className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold flex items-center gap-1.5"
-                >
-                  {copiedKey ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
-                  {copiedKey ? 'Copiado!' : 'Copiar'}
-                </button>
-              </div>
-              <p className="text-[10px] text-slate-400">
-                Passe no cabeçalho HTTP como <code>x-api-key</code> em todas as requisições externas.
-              </p>
-            </div>
-          </div>
-
-          {/* Webhook Inbound */}
-          <div className="p-6 rounded-2xl glass-panel border border-slate-800 space-y-4">
-            <h3 className="font-bold text-white text-sm flex items-center gap-2 border-b border-slate-800 pb-3">
-              <Database className="w-4 h-4 text-emerald-400" /> Webhook de Entrada (Inbound URL)
-            </h3>
-
-            <p className="text-xs text-slate-300 leading-relaxed">
-              Utilize esta URL nos formulários do seu site ou no CRM parceiro para adicionar ou atualizar leads automaticamente no WappGR.
-            </p>
-
-            <div className="flex gap-2">
-              <input
-                type="text"
-                readOnly
-                value={inboundUrl}
-                className="flex-1 px-3.5 py-2.5 rounded-xl glass-input text-xs text-white font-mono"
-              />
-              <button
-                onClick={() => copyToClipboard(inboundUrl, setCopiedUrl)}
-                className="px-4 py-2.5 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs font-semibold flex items-center gap-1.5"
-              >
-                {copiedUrl ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                {copiedUrl ? 'Copiado!' : 'Copiar URL'}
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Painel Direito: Testador de Webhook Inbound ao Vivo (5 cols) */}
-        <div className="lg:col-span-5 space-y-4">
-          <div className="p-6 rounded-2xl glass-panel border border-slate-800 space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h3 className="font-bold text-white text-sm flex items-center gap-2">
-                <Code className="w-4 h-4 text-purple-400" /> Testador de Inserção via CRM Webhook
-              </h3>
-              <span className="text-[10px] px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 font-bold">
-                POST JSON
-              </span>
-            </div>
-
-            <p className="text-xs text-slate-400">
-              Simule o envio de um payload de checkout ou CRM e veja a criação instantânea de lead no WappGR:
-            </p>
-
-            <textarea
-              rows="7"
-              value={testPayload}
-              onChange={(e) => setTestPayload(e.target.value)}
-              className="w-full p-3 rounded-xl glass-input text-xs text-emerald-300 font-mono resize-none"
-            ></textarea>
-
+      )}
+      {notice && (
+        <p className="notice" role="status">
+          {notice}
+        </p>
+      )}
+      <form
+        className="panel space-y-4"
+        onSubmit={(e) => {
+          e.preventDefault();
+          act(async () => {
+            setConfig(await mutation("/crm/config", { publicBaseUrl: base }));
+            setNotice("Configuração salva.");
+          });
+        }}
+      >
+        <Field label="URL base da instalação (opcional)">
+          <input
+            placeholder={window.location.origin}
+            value={base}
+            onChange={(e) => setBase(e.target.value)}
+          />
+        </Field>
+        <p className="notice break-all">POST {url}</p>
+        <p>
+          Chave:{" "}
+          {config?.configured
+            ? "configurada"
+            : "não configurada — webhook desabilitado"}
+          . Use o cabeçalho x-api-key.
+        </p>
+        <button className="btn primary" disabled={busy}>
+          Salvar configuração
+        </button>{" "}
+        <button
+          className="btn"
+          type="button"
+          disabled={busy}
+          onClick={() => {
+            if (
+              !config?.configured ||
+              confirm(
+                "Revogar a chave atual e gerar outra? Integrações existentes precisarão ser atualizadas.",
+              )
+            )
+              act(async () => {
+                const r = await mutation("/crm/rotate-key");
+                setSecret(r.apiKey);
+                setConfig({ ...config, configured: true });
+                setNotice(r.message);
+              });
+          }}
+        >
+          Gerar / rotacionar chave
+        </button>
+        {secret && (
+          <div className="notice break-all">
+            <code>{secret}</code>
             <button
-              onClick={handleTestWebhook}
-              disabled={isTesting}
-              className="w-full py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-purple-500/20"
+              type="button"
+              className="btn ml-2"
+              onClick={() => navigator.clipboard.writeText(secret)}
             >
-              <Send className="w-4 h-4" />
-              {isTesting ? 'Disparando Requisição Webhook...' : 'Testar Inserção via CRM Webhook'}
+              Copiar chave
             </button>
-
-            {/* Test Result Display */}
-            {testResult && (
-              <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 space-y-2 text-xs">
-                <div className="flex items-center justify-between font-bold text-white">
-                  <span>Resposta do Servidor:</span>
-                  <span className="text-emerald-400 font-mono">Status {testResult.status || 200}</span>
-                </div>
-                <pre className="text-[10px] text-slate-300 bg-slate-950 p-2 rounded-lg font-mono overflow-x-auto">
-                  {JSON.stringify(testResult.data || testResult, null, 2)}
-                </pre>
-              </div>
-            )}
           </div>
-        </div>
-      </div>
+        )}
+      </form>
+      <section className="panel space-y-4">
+        <h2 className="font-bold">Validar JSON sem executar</h2>
+        <p className="notice">
+          Este simulador não salva contatos nem envia mensagens. O webhook real
+          preserva o opt-out existente. Novos opt-ins exigem optInConfirmed=true
+          e consentEvidence descrevendo a evidência.
+        </p>
+        <Field label="JSON de exemplo">
+          <textarea
+            rows="8"
+            value={payload}
+            onChange={(e) => setPayload(e.target.value)}
+          />
+        </Field>
+        <button
+          className="btn"
+          disabled={busy}
+          onClick={() =>
+            act(async () => {
+              const r = await mutation("/crm/simulate", JSON.parse(payload));
+              setNotice(r.message);
+            })
+          }
+        >
+          Validar simulação
+        </button>
+      </section>
+      <p className="text-sm text-slate-400">
+        Integração HTTP genérica de entrada. Eventos de saída e conectores
+        específicos de CRM não estão implementados.
+      </p>
     </div>
   );
 }

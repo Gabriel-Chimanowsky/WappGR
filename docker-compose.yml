@@ -1,4 +1,4 @@
-version: '3.8'
+# Alternativa legada: não utilizada pelo servidor Baileys atual.
 
 # ═══════════════════════════════════════════════════════════
 # WappGR - Evolution API Docker Compose
@@ -9,23 +9,23 @@ version: '3.8'
 
 services:
   evolution-api:
-    image: atendai/evolution-api:latest
+    image: ${EVOLUTION_IMAGE:?Defina uma imagem Evolution com versão fixa}
     container_name: wappgr-evolution
     restart: unless-stopped
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     environment:
       # ─── Server ───────────────────────────────
       - SERVER_URL=http://localhost:8080
       - SERVER_PORT=8080
       
       # ─── Authentication ───────────────────────
-      - AUTHENTICATION_API_KEY=wappgr_evo_key_2026
-      - AUTHENTICATION_EXPOSE_IN_FETCH_INSTANCES=true
+      - AUTHENTICATION_API_KEY=${EVOLUTION_API_KEY:?Defina a chave Evolution}
+      - AUTHENTICATION_EXPOSE_IN_FETCH_INSTANCES=false
       
-      # ─── Database (Internal SQLite) ───────────
+      # ─── Database (PostgreSQL) ───────────
       - DATABASE_PROVIDER=postgresql
-      - DATABASE_CONNECTION_URI=postgresql://postgres:wappgr2026@postgres:5432/evolution
+      - DATABASE_CONNECTION_URI=${EVOLUTION_DATABASE_URI:?Defina a URI PostgreSQL}
       
       # ─── RabbitMQ (disabled for simplicity) ───
       - RABBITMQ_ENABLED=false
@@ -41,7 +41,7 @@ services:
       - DEL_INSTANCE=false
       
       # ─── CORS ─────────────────────────────────
-      - CORS_ORIGIN=*
+      - CORS_ORIGIN=http://localhost:8080
       
     volumes:
       - evolution_instances:/evolution/instances
@@ -57,12 +57,12 @@ services:
     restart: unless-stopped
     environment:
       - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=wappgr2026
+      - POSTGRES_PASSWORD=${EVOLUTION_POSTGRES_PASSWORD:?Defina a senha PostgreSQL}
       - POSTGRES_DB=evolution
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
-      - "5433:5432"
+      - "127.0.0.1:5433:5432"
 
 volumes:
   evolution_instances:

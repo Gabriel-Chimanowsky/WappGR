@@ -1,0 +1,12 @@
+
+> wappgr@1.0.0 service:install
+> powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/windows.ps1 install
+
+C:\xampp\htdocs\WappGR\scripts\windows.ps1 : Instalação exige PowerShell como Administrador. XML preparado em 
+C:\xampp\htdocs\WappGR\server\runtime\task.xml; tarefa NÃO registrada.
+No C:\xampp\htdocs\WappGR\scripts\windows.ps1:119 caractere:11
++ } catch { Write-Error $_; exit 1 }
++           ~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (:) [Write-Error], WriteErrorException
+    + FullyQualifiedErrorId : Microsoft.PowerShell.Commands.WriteErrorException,windows.ps1
+ 

@@ -1,0 +1,27 @@
+{
+  "date": "2026-10-16",
+  "node": "v24.19.0",
+  "cwd": "C:\\Users\\Suki\\AppData\\Local\\Temp\\wappgr-install-BynXu0",
+  "steps": [
+    {
+      "command": "npm ci --offline --cache C:\\xampp\\htdocs\\WappGR\\.npm-cache --no-audit --no-fund",
+      "exitCode": 0
+    },
+    {
+      "command": "npm run build",
+      "exitCode": 0
+    }
+  ],
+  "imports": {
+    "exitCode": 0,
+    "result": "{\"baileys\":\"function\",\"sqlite\":\"function\"}"
+  },
+  "http": {
+    "frontend": 200,
+    "unauthenticatedApi": 401,
+    "session": {
+      "authenticated": false,
+      "needsSetup": true
+    }
+  }
+}

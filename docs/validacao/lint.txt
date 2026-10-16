@@ -1,0 +1,4 @@
+
+> wappgr@1.0.0 lint
+> oxlint src server shared test
+

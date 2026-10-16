@@ -1,0 +1,53 @@
+{
+  "date": "2026-10-16",
+  "before": {
+    "leads": 0,
+    "categories": 6,
+    "campaigns": 2,
+    "messages": 17
+  },
+  "after": {
+    "leads": 0,
+    "categories": 6,
+    "campaigns": 2,
+    "messages": 17
+  },
+  "campaignContentPreserved": true,
+  "messageContentPreserved": true,
+  "crmConfigurationPreserved": true,
+  "migrations": [
+    {
+      "version": 1,
+      "applied_at": "2026-10-16T08:55:28.870Z"
+    },
+    {
+      "version": 2,
+      "applied_at": "2026-10-16T08:55:28.873Z"
+    }
+  ],
+  "campaignStates": [
+    {
+      "execution_status": "LEGACY",
+      "count": 2
+    }
+  ],
+  "messageStates": [
+    {
+      "status": "LEGACY_UNKNOWN",
+      "count": 14
+    },
+    {
+      "status": "RECEIVED",
+      "count": 3
+    }
+  ],
+  "integrity": "ok",
+  "foreignKeyViolations": 0,
+  "backups": [
+    {
+      "path": "server/backups/before-v2-1792140928847-b1446332-7610-4011-bc5d-ca0acf4bfc0f.sqlite",
+      "size": 102400
+    }
+  ],
+  "whatsappStarted": false
+}

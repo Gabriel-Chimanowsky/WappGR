@@ -1,0 +1,38 @@
+[
+  {
+    "command": "npm run test:windows-task",
+    "started": "2026-10-16T13:49:01.031Z",
+    "finished": "2026-10-16T13:49:03.223Z",
+    "durationMs": 2192,
+    "exitCode": 0,
+    "signal": null,
+    "log": "windows-task.txt"
+  },
+  {
+    "command": "npm run service:install",
+    "started": "2026-10-16T13:49:03.223Z",
+    "finished": "2026-10-16T13:49:03.986Z",
+    "durationMs": 763,
+    "exitCode": 1,
+    "signal": null,
+    "log": "windows-install.txt"
+  },
+  {
+    "command": "npm run service:status",
+    "started": "2026-10-16T13:49:03.986Z",
+    "finished": "2026-10-16T13:49:05.725Z",
+    "durationMs": 1739,
+    "exitCode": 0,
+    "signal": null,
+    "log": "windows-status.txt"
+  },
+  {
+    "command": "node --test --test-name-pattern=operação Windows test/autonomy.test.cjs",
+    "started": "2026-10-16T13:49:00.131Z",
+    "finished": "2026-10-16T13:49:01.030Z",
+    "durationMs": 898,
+    "exitCode": 0,
+    "signal": null,
+    "log": "windows-preparacao.txt"
+  }
+]

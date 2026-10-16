@@ -1,0 +1,30 @@
+
+> wappgr@1.0.0 test:windows-task
+> powershell.exe -NoProfile -ExecutionPolicy Bypass -File test/windows-task.ps1
+
+{
+    "date":  "2026-10-16T13:49:01.5438963Z",
+    "taskName":  "WappGR-Validation-b17094664d0f4fea8a2b6fbab0143b8f",
+    "testRoot":  "C:\\xampp\\htdocs\\WappGR\\.npm-cache\\windows-task-8760ef936a634ac2bdd0a0498c385d3e",
+    "whatsappDisabled":  true,
+    "registered":  false,
+    "startupTriggerVerified":  false,
+    "actualWindowsRebootTested":  false,
+    "started":  false,
+    "duplicatePrevented":  false,
+    "stopped":  false,
+    "removed":  false,
+    "steps":  [
+                  {
+                      "output":  "{\n    \"backendAlreadyRunning\":  false,\n    \"registered\":  false,\n    \"xml\":  \"C:\\\\xampp\\\\htdocs\\\\WappGR\\\\.npm-cache\\\\windows-task-8760ef936a634ac2bdd0a0498c385d3e\\\\runtime\\\\task.xml\",\n    \"prepared\":  true\n}",
+                      "operation":  "install",
+                      "exitCode":  0
+                  }
+              ],
+    "administrator":  false,
+    "taskSchedulerQuerySucceeded":  true,
+    "taskSchedulerQueryError":  "Nenhum objeto MSFT_ScheduledTask encontrado com a propriedade \u0027TaskName\u0027 igual a \u0027WappGR-Validation-b17094664d0f4fea8a2b6fbab0143b8f\u0027. Verifique o valor da propriedade e tente de novo.",
+    "plan":  "C:\\xampp\\htdocs\\WappGR\\.npm-cache\\windows-task-8760ef936a634ac2bdd0a0498c385d3e\\runtime\\task.xml",
+    "xmlValidatedByTaskScheduler":  true,
+    "reason":  "Sessão sem privilégios de Administrador: tarefa SYSTEM não registrada. XML e scripts preparados e testados."
+}

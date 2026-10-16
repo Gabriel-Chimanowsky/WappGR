@@ -1,0 +1,26 @@
+{
+    "date":  "2026-10-16T14:04:22.3080783Z",
+    "taskName":  "WappGR-Validation-60db7380e9834aeba322107830dba49f",
+    "testRoot":  "C:\\xampp\\htdocs\\WappGR\\.npm-cache\\windows-task-bcca1352ebde4ab48caf1374604caa48",
+    "whatsappDisabled":  true,
+    "registered":  false,
+    "startupTriggerVerified":  false,
+    "actualWindowsRebootTested":  false,
+    "started":  false,
+    "duplicatePrevented":  false,
+    "stopped":  false,
+    "removed":  false,
+    "steps":  [
+                  {
+                      "output":  "{\n    \"backendAlreadyRunning\":  false,\n    \"registered\":  false,\n    \"xml\":  \"C:\\\\xampp\\\\htdocs\\\\WappGR\\\\.npm-cache\\\\windows-task-bcca1352ebde4ab48caf1374604caa48\\\\runtime\\\\task.xml\",\n    \"prepared\":  true\n}",
+                      "operation":  "install",
+                      "exitCode":  0
+                  }
+              ],
+    "administrator":  true,
+    "taskSchedulerQuerySucceeded":  true,
+    "taskSchedulerQueryError":  "Nenhum objeto MSFT_ScheduledTask encontrado com a propriedade \u0027TaskName\u0027 igual a \u0027WappGR-Validation-60db7380e9834aeba322107830dba49f\u0027. Verifique o valor da propriedade e tente de novo.",
+    "plan":  "C:\\xampp\\htdocs\\WappGR\\.npm-cache\\windows-task-bcca1352ebde4ab48caf1374604caa48\\runtime\\task.xml",
+    "xmlValidatedByTaskScheduler":  true,
+    "error":  "C:\\xampp\\htdocs\\WappGR\\scripts\\windows.ps1 : Registro não confirmado. Verifique o Agendador de Tarefas."
+}

@@ -1,0 +1,22 @@
+
+> wappgr@1.0.0 build
+> vite build
+
+vite v8.2.2 building client environment for production...
+transforming...
+✓ 2392 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                   1.38 kB │ gzip:   0.79 kB
+dist/assets/index-nUeGHoqn.css   47.00 kB │ gzip:   8.26 kB
+dist/assets/index-C7vkvahq.js   678.50 kB │ gzip: 196.96 kB
+
+✓ built in 2.89s
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - ESM syntax in a file loaded as CommonJS (vite.config.js:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+[plugin builtin:vite-reporter] 
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rolldownOptions.output.codeSplitting to improve chunking: https://rolldown.rs/reference/OutputOptions.codeSplitting
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.

@@ -1,0 +1,6 @@
+{
+  "status": 200,
+  "proxiedToIsolatedBackend": true,
+  "productionDatabaseUsed": false,
+  "whatsappInitialized": false
+}

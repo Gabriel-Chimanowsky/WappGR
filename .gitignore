@@ -30,3 +30,17 @@ dist-ssr
 *.db-shm
 *.bak
 server/wappgr.db*
+server/baileys_auth/
+server/backups/
+server/runtime/
+*.sqlite*
+*.instance-lock
+.env
+.env.*
+!.env.example
+.npm-cache/
+test-results/
+playwright-report/
+
+# Dados locais legados
+/server/data.json

@@ -1,23 +1,31 @@
-const Database = require('better-sqlite3');
-const path = require('path');
-const { v4: uuidv4 } = require('uuid');
+const Database = require("./sqlite");
+const path = require("path");
+const { randomUUID: uuidv4 } = require("node:crypto");
+const { migrate, backupBeforeMigration } = require("./migrations");
 
-const DB_PATH = path.join(__dirname, 'wappgr.db');
+const DB_PATH = process.env.WAPPGR_DB_PATH || path.join(__dirname, "wappgr.db");
 
 let db;
 
 function getDb() {
-  if (!db) {
-    db = new Database(DB_PATH);
-    db.pragma('journal_mode = WAL');
-    db.pragma('foreign_keys = ON');
-    initTables();
-  }
+  if (!db) db = openDatabase(DB_PATH);
   return db;
 }
 
-function initTables() {
-  const d = getDb();
+function openDatabase(filename = ":memory:") {
+  const database = new Database(filename);
+  database.pragma("busy_timeout = 5000");
+  const backup = backupBeforeMigration(database, filename);
+  if (backup) console.log("Backup consistente criado: " + backup);
+  database.pragma("journal_mode = WAL");
+  database.pragma("foreign_keys = ON");
+  initTables(database);
+  migrate(database);
+  return database;
+}
+
+function initTables(database) {
+  const d = database;
 
   d.exec(`
     CREATE TABLE IF NOT EXISTS settings (
@@ -142,116 +150,104 @@ function initTables() {
   // Migration: add jid column if missing
   try {
     const tableInfo = d.prepare("PRAGMA table_info(leads)").all();
-    const hasJid = tableInfo.some(col => col.name === 'jid');
+    const hasJid = tableInfo.some((col) => col.name === "jid");
     if (!hasJid) {
       d.exec("ALTER TABLE leads ADD COLUMN jid TEXT;");
     }
     d.exec("CREATE INDEX IF NOT EXISTS idx_leads_jid ON leads(jid);");
-  } catch (e) {}
+  } catch (e) {
+    throw new Error("Falha na migração do JID: " + e.message);
+  }
 
   // Seed connection row if empty
-  const connRow = d.prepare('SELECT COUNT(*) as c FROM connection').get();
+  const connRow = d.prepare("SELECT COUNT(*) as c FROM connection").get();
   if (connRow.c === 0) {
-    d.prepare(`INSERT INTO connection (id, instance_name, status, instance_type, evolution_api_url)
-               VALUES (1, 'wappgr-main', 'DISCONNECTED', 'EVOLUTION_API', 'http://localhost:8080')`).run();
+    d.prepare(
+      `INSERT INTO connection (id, instance_name, status, instance_type, evolution_api_url)
+               VALUES (1, 'wappgr-main', 'DISCONNECTED', 'EVOLUTION_API', 'http://localhost:8080')`,
+    ).run();
   }
 
   // Seed default categories if empty
-  const catCount = d.prepare('SELECT COUNT(*) as c FROM categories').get();
+  const catCount = d.prepare("SELECT COUNT(*) as c FROM categories").get();
   if (catCount.c === 0) {
-    const insert = d.prepare('INSERT INTO categories (id, name, color, description) VALUES (?, ?, ?, ?)');
-    insert.run(uuidv4(), 'Clientes VIP', '#10b981', 'Compradores frequentes e de alto valor');
-    insert.run(uuidv4(), 'Interessados', '#3b82f6', 'Leads que demonstraram interesse');
-    insert.run(uuidv4(), 'Compradores Recentes', '#8b5cf6', 'Compraram nos últimos 30 dias');
-    insert.run(uuidv4(), 'Leads Orgânicos', '#f59e0b', 'Entraram via WhatsApp diretamente');
+    const insert = d.prepare(
+      "INSERT INTO categories (id, name, color, description) VALUES (?, ?, ?, ?)",
+    );
+    insert.run(
+      uuidv4(),
+      "Clientes VIP",
+      "#10b981",
+      "Compradores frequentes e de alto valor",
+    );
+    insert.run(
+      uuidv4(),
+      "Interessados",
+      "#3b82f6",
+      "Leads que demonstraram interesse",
+    );
+    insert.run(
+      uuidv4(),
+      "Compradores Recentes",
+      "#8b5cf6",
+      "Compraram nos últimos 30 dias",
+    );
+    insert.run(
+      uuidv4(),
+      "Leads Orgânicos",
+      "#f59e0b",
+      "Entraram via WhatsApp diretamente",
+    );
   }
 
   // Seed default opt-in config
-  const optInSetting = d.prepare("SELECT value FROM settings WHERE key = 'optInConfig'").get();
+  const optInSetting = d
+    .prepare("SELECT value FROM settings WHERE key = 'optInConfig'")
+    .get();
   if (!optInSetting) {
     const defaultConfig = {
       autoOptInOnFirstMessage: true,
-      welcomeMessage: 'Olá! 👋 Seja bem-vindo! Para receber nossas ofertas exclusivas e novidades no WhatsApp, responda *SIM* ou *1*. Se não quiser receber, responda *SAIR*.',
-      confirmationMessage: 'Perfeito! 🎉 Você agora receberá nossas novidades e promoções.',
-      optOutMessage: 'Entendido! 👍 Você foi removido da lista e não receberá mais mensagens automáticas.',
-      yesKeywords: ['SIM', 'QUERO', '1', 'ACEITO', 'SIM!'],
-      noKeywords: ['SAIR', 'PARAR', 'CANCELAR', '2', 'NÃO', 'NAO']
+      welcomeMessage:
+        "Olá! 👋 Seja bem-vindo! Para receber nossas ofertas exclusivas e novidades no WhatsApp, responda *SIM*. Se não quiser receber, responda *SAIR*.",
+      confirmationMessage:
+        "Perfeito! 🎉 Você agora receberá nossas novidades e promoções.",
+      optOutMessage:
+        "Entendido! 👍 Você foi removido da lista e não receberá mais mensagens automáticas.",
+      yesKeywords: ["SIM", "ACEITO", "AUTORIZO"],
+      noKeywords: ["SAIR", "PARAR", "CANCELAR", "DESCADASTRAR"],
     };
-    d.prepare("INSERT INTO settings (key, value) VALUES ('optInConfig', ?)").run(JSON.stringify(defaultConfig));
-  }
-
-  // Seed sample interactive flow if empty
-  const flowCount = d.prepare('SELECT COUNT(*) as c FROM flows').get();
-  if (flowCount.c === 0) {
-    const sampleSteps = [
-      {
-        id: 'step_1',
-        title: 'Boas-vindas & Opções do Catálogo',
-        type: 'TEXT',
-        content: 'Olá {nome}! 🚀 Que bom falar com você. O que você gostaria de ver agora?',
-        delaySeconds: 1,
-        options: [
-          { id: 'opt_1', label: 'Ver Catálogo Completo', keyword: '1', nextStepId: 'step_2' },
-          { id: 'opt_2', label: 'Falar com Consultor Humano', keyword: '2', nextStepId: 'step_3' },
-          { id: 'opt_3', label: 'Pegar Cupom de Desconto', keyword: '3', nextStepId: 'step_4' }
-        ]
-      },
-      {
-        id: 'step_2',
-        title: 'Apresentação do Catálogo (Imagem/Vídeo)',
-        type: 'IMAGE',
-        mediaUrl: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=800&auto=format&fit=crop&q=80',
-        content: 'Aqui está o nosso catálogo de produtos mais vendidos deste mês com entrega rápida! ✨\n\nQual área você prefere?',
-        delaySeconds: 2,
-        changeCategory: 'Interessados',
-        options: [
-          { id: 'opt_2_1', label: 'Comprar com Desconto', keyword: '1', nextStepId: 'step_4' },
-          { id: 'opt_2_2', label: 'Menu Principal', keyword: '2', nextStepId: 'step_1' }
-        ]
-      },
-      {
-        id: 'step_3',
-        title: 'Transferência para Atendente Humano',
-        type: 'TEXT',
-        content: 'Perfeito! 👤 Transferi seu contato para nossa equipe. Um especialista entrará em contato com você aqui mesmo em poucos instantes.',
-        delaySeconds: 1,
-        changeCategory: 'Clientes VIP',
-        options: []
-      },
-      {
-        id: 'step_4',
-        title: 'Envio de Cupom Exclusivo',
-        type: 'TEXT',
-        content: '🎁 Seu cupom exclusivo de 15% OFF é: *WAPP15*\n\nAproveite em nosso site ou fale com nosso time para resgatar!',
-        delaySeconds: 1,
-        changeCategory: 'Clientes VIP',
-        options: [
-          { id: 'opt_4_1', label: 'Voltar ao Menu', keyword: '1', nextStepId: 'step_1' }
-        ]
-      }
-    ];
-
-    d.prepare(`INSERT INTO flows (id, name, trigger_type, trigger_keywords, description, active, steps_json) 
-               VALUES (?, ?, 'KEYWORD', 'QUERO, VER, CATALOGO, PRODUTOS, OFERTA, PLANOS', 'Funil de Apresentação e Qualificação de Vendas', 1, ?)`).run(
-      uuidv4(), 'Funil Interativo de Vendas & Catálogo', JSON.stringify(sampleSteps)
-    );
+    d.prepare(
+      "INSERT INTO settings (key, value) VALUES ('optInConfig', ?)",
+    ).run(JSON.stringify(defaultConfig));
   }
 }
 
-// ─── HELPERS ───────────────────────────────────────────
 function getSetting(key) {
-  const row = getDb().prepare("SELECT value FROM settings WHERE key = ?").get(key);
+  const row = getDb()
+    .prepare("SELECT value FROM settings WHERE key = ?")
+    .get(key);
   if (!row) return null;
-  try { return JSON.parse(row.value); } catch { return row.value; }
+  try {
+    return JSON.parse(row.value);
+  } catch {
+    return row.value;
+  }
 }
-
 function setSetting(key, value) {
-  const json = typeof value === 'string' ? value : JSON.stringify(value);
-  getDb().prepare("INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES (?, ?, datetime('now'))").run(key, json);
+  getDb()
+    .prepare(
+      "INSERT OR REPLACE INTO settings (key,value,updated_at) VALUES (?,?,?)",
+    )
+    .run(key, JSON.stringify(value), new Date().toISOString());
 }
-
 function generateId() {
   return uuidv4();
 }
-
-module.exports = { getDb, getSetting, setSetting, generateId, initTables };
+module.exports = {
+  getDb,
+  getSetting,
+  setSetting,
+  generateId,
+  initTables,
+  openDatabase,
+};

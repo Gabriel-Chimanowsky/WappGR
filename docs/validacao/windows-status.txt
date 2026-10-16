@@ -1,0 +1,21 @@
+
+> wappgr@1.0.0 service:status
+> powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/windows.ps1 status
+
+{
+    "taskName":  "WappGR-Backend",
+    "registered":  false,
+    "taskState":  "NOT_INSTALLED",
+    "taskQueryError":  null,
+    "lastTaskResult":  null,
+    "runtime":  {
+                    "installedRuntime":  false,
+                    "supervisorAlive":  false,
+                    "backendAlive":  false,
+                    "administrativelyStopped":  false,
+                    "healthFresh":  false,
+                    "supervisor":  null,
+                    "health":  null,
+                    "logsDirectory":  "C:\\xampp\\htdocs\\WappGR\\server\\runtime\\logs"
+                }
+}

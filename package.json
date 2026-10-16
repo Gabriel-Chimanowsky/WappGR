@@ -7,35 +7,51 @@
     "server": "node server/index.js",
     "client": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "pretest": "npm run build",
+    "test": "node --test --test-concurrency=1 test/*.test.cjs",
+    "lint": "oxlint src server shared test",
+    "setup-admin": "node server/setup-admin.js",
+    "test:browser": "playwright test",
+    "backup": "node server/backup.js",
+    "restore": "node server/backup.js restore",
+    "migrate": "node server/migrate.js",
+    "service:install": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/windows.ps1 install",
+    "service:start": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/windows.ps1 start",
+    "service:stop": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/windows.ps1 stop",
+    "service:status": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/windows.ps1 status",
+    "service:remove": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/windows.ps1 remove",
+    "test:windows-task": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File test/windows-task.ps1"
   },
   "dependencies": {
     "@whiskeysockets/baileys": "^7.0.0-rc14",
     "axios": "^1.19.0",
-    "better-sqlite3": "^13.0.3",
     "concurrently": "^10.0.5",
-    "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "lucide-react": "^1.33.0",
-    "node-cron": "^4.6.0",
     "pino": "^10.3.1",
     "qrcode": "^1.5.4",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
-    "recharts": "^3.10.1",
-    "uuid": "^14.0.2"
+    "recharts": "^3.10.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.64.1",
     "@tailwindcss/vite": "^4.3.3",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.4",
     "oxlint": "^1.75.0",
+    "prettier": "^3.9.10",
     "tailwindcss": "^4.3.3",
     "vite": "^8.2.0"
   },
+  "engines": {
+    "node": ">=24.0.0"
+  },
   "allowScripts": {
-    "better-sqlite3@13.0.3": true
+    "@whiskeysockets/baileys": true,
+    "protobufjs": true
   }
 }

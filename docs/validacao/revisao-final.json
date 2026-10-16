@@ -1,0 +1,13 @@
+{
+  "date": "2026-10-16T13:50:21.169Z",
+  "gitDiffCheckExitCode": 0,
+  "documentationLinksChecked": true,
+  "documentationLocalLinkCount": 33,
+  "databaseIntegrity": "ok",
+  "databaseForeignKeyViolations": 0,
+  "productionAuthDirectoryPresent": false,
+  "activeTransport": "BAILEYS",
+  "windowsTaskState": "NOT_INSTALLED",
+  "windowsXmlNativeValidated": true,
+  "review": "background.json"
+}

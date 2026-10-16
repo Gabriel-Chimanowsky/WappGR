@@ -1,0 +1,16 @@
+Backup consistente criado: C:\xampp\htdocs\WappGR\server\backups\before-v2-1792140928847-b1446332-7610-4011-bc5d-ca0acf4bfc0f.sqlite
+{
+  "database": "C:\\xampp\\htdocs\\WappGR\\server\\wappgr.db",
+  "versions": [
+    {
+      "version": 1,
+      "applied_at": "2026-10-16T08:55:28.870Z"
+    },
+    {
+      "version": 2,
+      "applied_at": "2026-10-16T08:55:28.873Z"
+    }
+  ],
+  "integrity": "ok",
+  "foreignKeyViolations": 0
+}

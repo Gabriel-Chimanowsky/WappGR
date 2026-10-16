@@ -3,9 +3,13 @@
 @layer base {
   body {
     @apply bg-slate-950 text-slate-100 font-sans antialiased selection:bg-emerald-500 selection:text-slate-950;
-    background-image: 
+    background-image:
       radial-gradient(at 0% 0%, rgba(16, 185, 129, 0.08) 0px, transparent 50%),
-      radial-gradient(at 100% 100%, rgba(14, 165, 233, 0.05) 0px, transparent 50%);
+      radial-gradient(
+        at 100% 100%,
+        rgba(14, 165, 233, 0.05) 0px,
+        transparent 50%
+      );
     min-height: 100vh;
   }
 }
@@ -53,10 +57,74 @@
 }
 
 @keyframes slide-up {
-  from { opacity: 0; transform: translateY(20px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .animate-slide-up {
   animation: slide-up 0.3s ease-out;
+}
+
+.panel {
+  @apply rounded-2xl p-6 border border-slate-800 bg-slate-900/80;
+  backdrop-filter: blur(16px);
+}
+.field {
+  @apply flex flex-col gap-2 text-sm text-slate-300;
+}
+.field input:not([type="checkbox"]),
+.field select,
+.field textarea {
+  @apply w-full rounded-lg bg-slate-900 border border-slate-700 px-3 py-2 text-white;
+}
+.field textarea {
+  min-height: 100px;
+}
+.btn {
+  @apply rounded-lg px-4 py-2 text-sm font-semibold bg-slate-800 border border-slate-600 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed;
+}
+.btn.primary {
+  @apply bg-emerald-500 text-slate-950 border-emerald-400 hover:bg-emerald-400;
+}
+.btn.danger {
+  @apply border-rose-700 text-rose-300;
+}
+.notice {
+  @apply bg-slate-800/70 text-slate-300 rounded-lg p-3 text-sm;
+}
+.error {
+  @apply bg-rose-950/50 text-rose-300 border border-rose-800 rounded-lg p-3 text-sm;
+}
+.status {
+  @apply inline-block rounded-full px-2 py-1 text-xs bg-slate-700 text-slate-100;
+}
+.status.warn {
+  @apply bg-amber-950 text-amber-300;
+}
+.data-table {
+  @apply w-full text-sm text-left;
+}
+.data-table th {
+  @apply text-slate-400 text-xs py-3 px-2 font-medium;
+}
+.data-table td {
+  @apply border-t border-slate-800 py-3 px-2;
+}
+.session-bar {
+  @apply flex gap-4 justify-end px-6 py-1 text-xs bg-slate-900 text-slate-400;
+}
+.session-bar button {
+  @apply text-emerald-400 underline;
+}
+button,
+input,
+select,
+textarea {
+  outline-offset: 3px;
 }
