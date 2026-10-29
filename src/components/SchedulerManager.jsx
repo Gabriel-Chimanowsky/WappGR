@@ -1,6 +1,7 @@
 import { dateLabel } from "../lib/presentation";
 import { useState, useEffect, useRef } from "react";
 import { api, mutation } from "../lib/api";
+import { randomUUID } from "../lib/uuid";
 import { Field } from "./QueueUI";
 const initial = {
   title: "",
@@ -74,7 +75,7 @@ export default function SchedulerManager({ categories = [], onOpenCampaign }) {
           act(async () => {
             const encoded = JSON.stringify(form);
             if (request.current?.encoded !== encoded)
-              request.current = { encoded, key: crypto.randomUUID() };
+              request.current = { encoded, key: randomUUID() };
             await mutation("/schedules", form, "POST", request.current.key);
             request.current = null;
             setForm(initial);

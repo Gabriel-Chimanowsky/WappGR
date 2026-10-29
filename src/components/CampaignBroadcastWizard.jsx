@@ -2,6 +2,7 @@ import { dateLabel } from "../lib/presentation";
 import { useState, useEffect, useRef } from "react";
 import { Send, Pause, Play, Download, RefreshCw } from "lucide-react";
 import { api, mutation, download } from "../lib/api";
+import { randomUUID } from "../lib/uuid";
 import { Field, Status, Pager } from "./QueueUI";
 const initial = {
   title: "",
@@ -129,7 +130,7 @@ export default function CampaignBroadcastWizard({
       const body = { ...form, selection },
         encoded = JSON.stringify(body);
       if (createRequest.current?.encoded !== encoded)
-        createRequest.current = { encoded, key: crypto.randomUUID() };
+        createRequest.current = { encoded, key: randomUUID() };
       const result = await mutation(
         "/campaigns/send",
         body,
@@ -160,7 +161,7 @@ export default function CampaignBroadcastWizard({
     try {
       const encoded = JSON.stringify({ id: currentId, action, body });
       if (actionRequest.current?.encoded !== encoded)
-        actionRequest.current = { encoded, key: crypto.randomUUID() };
+        actionRequest.current = { encoded, key: randomUUID() };
       const result = await mutation(
         "/campaigns/" + currentId + "/" + action,
         body,

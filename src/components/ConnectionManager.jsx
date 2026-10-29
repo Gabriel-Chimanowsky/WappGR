@@ -1,6 +1,7 @@
 import { dateLabel } from "../lib/presentation";
 import { useState, useEffect, useRef } from "react";
 import { api, mutation } from "../lib/api";
+import { randomUUID } from "../lib/uuid";
 import { Field, Status } from "./QueueUI";
 export default function ConnectionManager({ onRefresh }) {
   const request = useRef(null);
@@ -35,7 +36,7 @@ export default function ConnectionManager({ onRefresh }) {
     try {
       const encoded = JSON.stringify({ path, body });
       if (request.current?.encoded !== encoded)
-        request.current = { encoded, key: crypto.randomUUID() };
+        request.current = { encoded, key: randomUUID() };
       await mutation("/connection/" + path, body, "POST", request.current.key);
       request.current = null;
       setConnection(await api("/connection/status"));

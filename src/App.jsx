@@ -11,6 +11,7 @@ import LiveChat from "./components/LiveChat";
 import CRMIntegration from "./components/CRMIntegration";
 import FlowsManager from "./components/FlowsManager";
 import { api, mutation } from "./lib/api";
+import { randomUUID } from "./lib/uuid";
 export default function App() {
   const [activeTab, setActiveTab] = useState("dashboard"),
     [stats, setStats] = useState(null),
@@ -78,7 +79,7 @@ export default function App() {
         path,
         body,
         method,
-        idempotent ? crypto.randomUUID() : undefined,
+        idempotent ? randomUUID() : undefined,
       );
       await refresh();
       return result;

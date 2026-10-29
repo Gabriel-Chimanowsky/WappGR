@@ -1,6 +1,7 @@
 import { dateLabel } from "../lib/presentation";
 import { useState, useEffect, useRef } from "react";
 import { api, mutation } from "../lib/api";
+import { randomUUID } from "../lib/uuid";
 import { Field, Pager, Status } from "./QueueUI";
 export default function LiveChat() {
   const [search, setSearch] = useState(""),
@@ -72,7 +73,7 @@ export default function LiveChat() {
       const body = { leadId, text },
         encoded = JSON.stringify(body);
       if (request.current?.encoded !== encoded)
-        request.current = { encoded, key: crypto.randomUUID() };
+        request.current = { encoded, key: randomUUID() };
       await mutation("/chat/send", body, "POST", request.current.key);
       setDrafts((d) => ({ ...d, [leadId]: "" }));
       request.current = null;
