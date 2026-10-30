@@ -1,0 +1,96 @@
+{
+  "checkedAt": "2026-10-29T21:35:35.145Z",
+  "scope": "LOCAL_SIMULATION_ONLY",
+  "node": "v24.19.0",
+  "unitIntegration": {
+    "command": "npm.cmd test",
+    "exitCode": 0,
+    "passed": 80,
+    "failed": 0,
+    "skipped": 0,
+    "cloudSpecific": 14
+  },
+  "browser": {
+    "command": "npm.cmd run test:browser",
+    "exitCode": 0,
+    "passed": 8,
+    "failed": 0,
+    "seconds": 54.7
+  },
+  "lint": {
+    "command": "npm.cmd run lint",
+    "exitCode": 0
+  },
+  "build": {
+    "command": "npm run build (pretest)",
+    "exitCode": 0,
+    "warnings": [
+      "Vite config format for future native loader",
+      "bundle > 500 kB"
+    ]
+  },
+  "officialMetaTest": false,
+  "realMessagesSent": false,
+  "numberMigrated": false,
+  "vpsPublished": false,
+  "localOperationalSchema": 2,
+  "sourceSha256": {
+    "server/app.js": "eae981c14523a48c0fedf27b757c8ad6d69ba6f3a995002c5e6435bfa97743cc",
+    "server/backend.js": "786dc32c20ca7c1ac785b8d92db50e349e4331340b523443f030cf2e586b3456",
+    "server/campaigns.js": "6f680a0740fb0c1e04c3038dee308c45e05c30682b8c792088c26cb187fec9f8",
+    "server/cloud-api.js": "60185577ed3db5b7efe5816d8e7fe7f8b3e8b558637fbd2717b587a69dba5747",
+    "server/dispatcher.js": "abfc4902a891d0a5715fadacc8a611d352a92704caad5ff6c7a40d3e264ad725",
+    "server/flows.js": "2b85d7cd97f902328ef63655376ff03ec8abe07a255d645416d2151037a04274",
+    "server/leads.js": "dcd563c9d15081443fd105da9861c08fd4f9d0c1f6a2954aa23b693fc10a83c6",
+    "server/migrations.js": "97125cc46c0a1c61825866238dac17155f9a23822f54b843c8d203c5e4249814",
+    "server/runtime.js": "ee312ccd55e5cf4303bedb4586290788c03ea3cd0e24788a0fc80a5138abca75",
+    "server/scheduler.js": "f7ad61c916dcec3e62b6a737e059e2fc24d8abd1434f8bbea9292bbc0b982b47",
+    "src/components/CampaignBroadcastWizard.jsx": "58c2078dc69bf95c83194bf12d7a27da1622b89a9888669f33551a44373ede93",
+    "src/components/ConnectionManager.jsx": "b3ac0f9b6abee1f8c231236a1b0cac2e7e54d13ebbc8edafa10f3f3ddfaa0cd8",
+    "src/components/FlowsManager.jsx": "fcc60683afb23def95f212b93543a9b3431b5c833c21a49f2893fa1b7b61183d",
+    "src/components/LiveChat.jsx": "8bb11709cdd3c69ce076b7c36d8113bd27242d55be315ece5f290e587f879f3a",
+    "src/components/Navbar.jsx": "dc6b603ffdcd76ec37dce88321e8eedc5bc501f2d67162b6c1d0f68516eed881",
+    "src/components/SchedulerManager.jsx": "4b06b2fbfc69c30a1e5e2005263b3a2050e6689f2ac56a169a53378a86d2f963",
+    "src/components/Sidebar.jsx": "c3a0b466368a5301290d93ed3224b0e1bae24b28409ef3a652965da53f827ed5",
+    "src/lib/presentation.js": "758fbc172d83af95aa6f7f7d38f30650d76b76dd459932a6d9a3b41cf0b68c96",
+    "test/api.test.cjs": "a9d20af3dcaea935d51c6d3dd87c2f50bf7a7744772b1bea9381b4cdf5427137",
+    "test/autonomy-worker.cjs": "9275fbb85ae135344170aaac12beec3d9e250426183a0a2438ba4b7df1129a10",
+    "test/autonomy.test.cjs": "922d3a47adbfa2cb2e44db26da024ba0d2ba7ae5eadaaa24dd00c9779bbce925",
+    "test/browser/campaign.spec.cjs": "d044a9c3f53ece8f22cb75486f3b6dee9efe9f97d5469fc385e5b8f905320e8a",
+    "test/browser/server.cjs": "232a04cc702c0bed61557c100f38ffc6b03d33a78ed451b01a09756c850c49b4",
+    "test/browser/uuid.spec.cjs": "3e2be46ae1994a7a342f2395de5f24e10eb032b0ae9f9e307dca10d0dad33692",
+    "test/connection.test.cjs": "ed64710beed15483f389782211e9a79404457b6500613d8ed08182ac355f9dad",
+    "test/flows.test.cjs": "a8ab46fb2df110247dc75ca93203717cf1c416128d228f4c99ed2266b34803bb",
+    "test/helpers.cjs": "2cb0e8fe95f371d1d9ea7ce99ac5dcb9e005bf8f12ef5acf0b1154f31a3d6dea",
+    "test/queue.test.cjs": "479aee3deef4fd803f879cff4ad164b9b25e51e5ebc10142f632d4b09c4a4df3",
+    "test/storage.test.cjs": "e65653f0096748f8c9acc48ca50c8243ec86c0f997ad7b80a113bc7d2f62eda6",
+    "deploy/ecosystem.config.cjs": "43eb3c4157641ed47b1a037cd045dfbed41cde175a68b8474ac5b9997ee625bd",
+    "server/official-policy.js": "a90c2c28582f50ce9938f762693ceb15f702cbe6fc775ba1317a21ab5c683c30",
+    "shared/message-categories.json": "b01a12a1719f3ff00bd7149cb0a34042a18af627a1a8c6b3ea289bf0c7cf61bc",
+    "shared/template-parameters.mjs": "804d8062e2349314867e14d29838c7c87a270dd8c1a4b9d8c9d89f191f46e014",
+    "src/components/CloudSettings.jsx": "8c7d0606b8569974a9ce751bfbcdfc05593d72d57c5ae3bbf6722ac6ae70716e",
+    "src/components/MessageConfig.jsx": "e1695f7ff3ad1f3acfe88f9ae8ff9d0cae75a55a9238534dcc14a95a377d0b1f",
+    "test/browser/cloud.spec.cjs": "0a08f1668b665574b84eabcda94c5b0666117a6eff6991175006f18a308c3879",
+    "test/browser/global-teardown.cjs": "c277ce31c959e4f6a47197ee488c1b35e5e8ba23fab4ab8f7de3d429fc1e7dc4",
+    "test/cloud.test.cjs": "fc79438908618f91b712fe75843d65cfb8dbeef8f5b5070c89363eca510faa55"
+  },
+  "artifactSha256": {
+    "cloud-tests.txt": "78765a68b8f7ad6ce19ff223387e683c6a947a4da5a98ff641047aa3c8515fef",
+    "cloud-browser.txt": "7c525c26994b78d159d4a5efce619adc2376fa3f00282a066e54793f46453745",
+    "cloud-lint.txt": "28593e5c6d6b6dff55c89c05b3c5b033be2efcd0cb0b7adf90fb43f2e289a36e",
+    "cloud-backup.json": "57b0d9bef0a5b9919187890e332492e136b5cb2ab509ace3a5bef46ef8e54ca4",
+    "cloud-template.png": "a628b01262445787a351b70a2aca98955ef19162e5b83f16871b1a2ec2cb0dfa",
+    "cloud-flow-editor.png": "6b1b451fe6138966135316cebb40f3898f123bebbd1050b6c3d2f834e463786f",
+    "cloud-schedule.png": "08126e10d339ef45bdaf8eadd7567061f83273bba57e26ba19a5556fc18503cd",
+    "cloud-configuration.png": "bab2b146c1e2fbf8cfe11f2747f2ee1f897b90dde1e07a3d74ad3f9d808a5bd3",
+    "cloud-paused17.png": "f972088ab78e2aff54b4692563992a1c31fec42874fd5641f898cf24a4955ae3"
+  },
+  "resumptionAudit": {
+    "checkedAt": "2026-10-30T02:22:20.406Z",
+    "sourceHashMismatches": [],
+    "artifactHashMismatches": [],
+    "testsRepeated": false,
+    "functionalChanges": false,
+    "status": "LOCAL_DELIVERY_COMPLETE_EXTERNAL_VALIDATION_PENDING"
+  }
+}

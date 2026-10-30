@@ -97,6 +97,7 @@ test(
       "/campaigns",
       "POST",
       {
+        messageCategory: "SERVICE",
         title: "Sem navegador",
         message: "Campanha autônoma",
         pacingSeconds: 1,
@@ -115,6 +116,7 @@ test(
           "/schedules",
           "POST",
           {
+            messageCategory: "SERVICE",
             title: "Cron sem navegador",
             message: "Ocorrência autônoma",
             recurrence: "ONCE",
@@ -134,6 +136,7 @@ test(
       "POST",
       {
         name: "Fluxo autônomo",
+        messageCategory: "SERVICE",
         trigger_type: "KEYWORD",
         trigger_keywords: "AUTONOMO",
         active: 1,

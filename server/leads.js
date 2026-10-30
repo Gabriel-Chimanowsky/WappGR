@@ -207,7 +207,9 @@ class Leads {
         );
       if (changedIdentity) {
         this.db
-          .prepare("UPDATE leads SET last_inbound_at=NULL WHERE id=?")
+          .prepare(
+            "UPDATE leads SET last_inbound_at=NULL,cloud_last_inbound_at=NULL WHERE id=?",
+          )
           .run(leadId);
         this.db
           .prepare("DELETE FROM lead_flow_sessions WHERE lead_id=?")

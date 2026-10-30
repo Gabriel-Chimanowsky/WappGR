@@ -1,6 +1,6 @@
 # Operação autônoma do WappGR no Windows
 
-**16/10/2026 — Baileys exclusivo, Node 24, aplicação compilada.** Não são necessários Vite em execução, navegador, operador conectado, Redis ou um gerenciador externo de processos.
+**29/10/2026 — Cloud API oficial, Node 24, aplicação compilada.** Não são necessários Vite em execução, navegador, operador conectado, Redis ou um gerenciador externo de processos. Configure os ativos Meta, segredos e webhook HTTPS conforme o [guia Cloud API](CLOUD_API.md). Não há pareamento ou fallback Baileys.
 
 ## Situação desta máquina
 
@@ -62,7 +62,7 @@ Encerrar um processo à força pelo Gerenciador de Tarefas é tratado como falha
 | Recorrência | Cron do backend gera ocorrências enquanto a regra estiver ativa; ONCE executa uma vez |
 | Fluxo | Inbox, gatilhos, etapas, atrasos e expiração são processados no backend; etapa WAITING_REPLY espera resposta sem repetir envio |
 | Desativação de fluxo | Impede novos gatilhos, cancela trabalhos pendentes e encerra sessões; chamada já entregue ao SDK não pode ser desfeita |
-| Recebimento e respostas | Callbacks Baileys persistem a entrada; processamento e respostas passam pela fila compartilhada |
+| Recebimento e respostas | Webhooks oficiais assinados persistem a entrada; processamento e respostas passam pela fila compartilhada |
 | Login expirado | Impede novos comandos administrativos; não invalida trabalhos já autorizados |
 
 Os loops iniciam junto com o backend: despachante a cada 250 ms e cron/fluxos a cada segundo. Não pertencem a uma requisição, cookie ou tela. Timers da interface só consultam estado. Consentimento, opt-out, janela interna de atendimento, expiração de sessão de fluxo e elegibilidade continuam aplicados.
@@ -75,7 +75,7 @@ A própria tarefa pode reiniciar um supervisor que falhou até três vezes, com 
 
 Na recuperação, são reutilizados destinatários, lote parcial, saldo, cadência e próximo horário persistidos. Pausas, cancelamentos e restrições permanecem; chamadas interrompidas ficam UNCERTAIN, sem retry automático. O cron recupera no máximo uma ocorrência vencida e não dispara todo o histórico de horários perdidos.
 
-Desconexão comum segura novas tentativas, sem consumir toda a audiência em falhas. O Baileys tenta reconectar com esperas de 5 s, 15 s, 30 s, 60 s e até 5 min, reiniciadas após uma conexão aberta. Falhas de rede reconhecidas durante inicialização também podem reconectar sem operador quando há credenciais. Falhas de configuração/credenciais precisam de revisão. Logout e sinal de restrição 403 não iniciam reconexão automática; reconectar manualmente também não remove o bloqueio persistido da conta.
+A Cloud API usa chamadas HTTPS e webhooks, sem socket de pareamento. Configuração ausente segura a fila; catálogo vencido bloqueia modelos até sincronização. Recusas inequívocas transitórias podem usar o retry limitado da campanha; timeouts e chamadas ambíguas ficam incertos. Credencial ou permissão inválida exige correção e não é apresentada como banimento. Restrição real permanece persistida. Consulte os códigos e ações no guia Cloud API.
 
 ## Logs e diagnóstico
 
@@ -99,13 +99,15 @@ Get-Content -LiteralPath 'C:\xampp\htdocs\WappGR\server\runtime\logs\runtime.log
 
 ## Manutenção e identidade
 
-SYSTEM precisa ler o Node, código, build e `.env` e modificar banco, arquivos WAL, runtime e a pasta Baileys. O instalador **não copia credenciais**, não as inclui no XML e não troca de pareamento. Guarde o projeto em volume local disponível antes do login; não use unidade mapeada da sessão do usuário. O código executado por SYSTEM deve ficar gravável somente por identidades confiáveis. As permissões efetivas precisam ser conferidas na máquina administrada.
+SYSTEM precisa ler o Node, código, build e `.env` e modificar banco, arquivos WAL e runtime. A pasta antiga de autenticação continua preservada e protegida por lock, sem inicializar Baileys. O instalador **não copia segredos**, não os inclui no XML e não registra nem migra número. Guarde o projeto em volume local disponível antes do login; não use unidade mapeada da sessão do usuário. O código executado por SYSTEM deve ficar gravável somente por identidades confiáveis. As permissões efetivas precisam ser conferidas na máquina administrada.
 
-Para atualizar ou fazer backup/restauração, pare o backend com `service:stop`, execute a manutenção, compile quando necessário e use `service:start`. A restauração mantém o bloqueio de conta e a reconciliação conservadora já documentados. Não há nova migração de esquema nesta entrega.
+Para atualizar ou fazer backup/restauração, pare o backend com `service:stop`, execute a manutenção, compile quando necessário e use `service:start`. A restauração mantém o bloqueio de conta e a reconciliação conservadora já documentados. A migração v3 cria snapshot consistente e exige revisão dos registros antigos antes de reativá-los; siga o guia Cloud API.
 
 **Computador desligado, suspenso ou sem internet não envia mensagens.** A tarefa não liga o computador, não evita suspensão e não altera energia. Sem credenciais válidas ou com conta restrita, executar o backend não garante disponibilidade do WhatsApp.
 
 ## Validação e limites
+
+Os resultados do Agendador citados neste documento pertencem à validação Windows anterior. A migração não registrou a tarefa, não reiniciou o Windows e não revalidou execução como SYSTEM. Os testes atuais de processos, autonomia e Cloud API constam em [VALIDACAO_CLOUD_API.md](VALIDACAO_CLOUD_API.md). Tudo usa transporte sintético; webhook externo, mídia/recibos oficiais e operação real ainda exigem homologação.
 
 Os [testes registrados](validacao/verificacoes.json) incluem processos reais com transporte sintético. `test/autonomy.test.cjs` fecha conexões HTTP e expira o login enquanto a campanha continua, executa cron/fluxo/entrada sem frontend, verifica WAITING_REPLY e cancela trabalho de fluxo desativado. `test/supervisor.test.cjs` encerra o processo iniciador, observa o backend vivo, mata/reinicia o filho sem repetir campanha concluída, recusa segunda instância e comprova parada persistente, backoff e bloqueio de configuração. Também para durante envio e comprova que a recuperação conserva um incerto, conclui os outros sete e não repete o primeiro destinatário. Testes anteriores de queda, lote 17/40, saldo 23, pausa, cancelamento, opt-out e restrição foram reaproveitados.
 

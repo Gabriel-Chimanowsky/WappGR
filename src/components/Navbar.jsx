@@ -4,7 +4,7 @@ import { ShieldCheck, Sparkles, RefreshCw, Smartphone } from "lucide-react";
 export default function Navbar({ activeTab, onRefresh, stats }) {
   const titles = {
     dashboard: "Painel Geral de Controle",
-    connection: "Conexão WhatsApp & Instâncias",
+    connection: "Configuração WhatsApp Business",
     leads: "Gestão de Leads & Categorias",
     optin: "Regras de Consentimento (Opt-in Engine)",
     broadcast: "Central de Disparos em Massa",
@@ -29,7 +29,7 @@ export default function Navbar({ activeTab, onRefresh, stats }) {
         {/* Quick Instance Type Badge */}
         <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-xs text-slate-300">
           <Smartphone className="w-3.5 h-3.5 text-emerald-400" />
-          <span>Baileys · WhatsApp por QR Code</span>
+          <span>WhatsApp Business · Cloud API oficial</span>
         </div>
 
         {/* Refresh button */}

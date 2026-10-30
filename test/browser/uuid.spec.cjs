@@ -1,4 +1,7 @@
 const { test, expect } = require("@playwright/test");
+test.beforeEach(async ({ request }) => {
+  await request.post("/__test/reset");
+});
 
 test("interface sem randomUUID: criação e repetição não duplicam a campanha", async ({
   page,
@@ -40,6 +43,7 @@ test("interface sem randomUUID: criação e repetição não duplicam a campanha
   await page
     .getByLabel("Título", { exact: true })
     .fill("Campanha sem randomUUID");
+  await page.getByRole("radio", { name: "Servi\u00e7o", exact: true }).check();
   await page
     .getByLabel("Mensagem (texto)", { exact: true })
     .fill("Teste sintético");
@@ -49,7 +53,7 @@ test("interface sem randomUUID: criação e repetição não duplicam a campanha
     exact: true,
   });
   await save.click();
-  await expect(page.getByRole("alert")).toHaveText(
+  await expect(page.getByRole("alert").first()).toHaveText(
     "Falha de resposta simulada",
   );
   await save.click();

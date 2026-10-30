@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { api } from "../lib/api";
+import MessageConfig, { CategoryField, CostPreview } from "./MessageConfig";
+import { categoryLabel } from "../lib/presentation";
 import {
   GitBranch,
   Plus,
@@ -34,6 +36,8 @@ export default function FlowsManager({
   showToast,
 }) {
   const [busy, setBusy] = useState(false);
+  const [categoryError, setCategoryError] = useState(""),
+    [flowPreview, setFlowPreview] = useState(null);
   const [leadSearch, setLeadSearch] = useState("");
   const [searchLeads, setSearchLeads] = useState([]);
   useEffect(() => {
@@ -68,6 +72,7 @@ export default function FlowsManager({
       description:
         "Funil automático acionado quando o lead responde ao disparo",
       active: 1,
+      messageCategory: null,
       steps: [
         {
           id: "step_1",
@@ -225,9 +230,28 @@ export default function FlowsManager({
       return;
     }
     if (busy) return;
+    if (editingFlow.active && !editingFlow.messageCategory) {
+      setCategoryError("Selecione a Categoria da mensagem.");
+      return;
+    }
+    const invalid = editingFlow.steps.find(
+      (s) => s.overrideCategory && !s.messageCategory,
+    );
+    if (editingFlow.active && invalid) {
+      setCategoryError(
+        "Selecione a categoria da substituição explícita em cada etapa.",
+      );
+      return;
+    }
+    setCategoryError("");
     setBusy(true);
     try {
-      if (await onSaveFlow(editingFlow)) {
+      if (
+        await onSaveFlow({
+          ...editingFlow,
+          previewToken: flowPreview?.previewToken,
+        })
+      ) {
         setEditingFlow(null);
         setIsCreating(false);
       }
@@ -322,6 +346,15 @@ export default function FlowsManager({
                           {flow.description}
                         </p>
                       )}
+                      <p className="text-sm">
+                        Categoria: {categoryLabel(flow.messageCategory)}
+                        {flow.review_required ? " · Revisão obrigatória" : ""}
+                      </p>
+                      {flow.sessions?.map((s) => (
+                        <p className="text-xs text-amber-300" key={s.lead_id}>
+                          {s.status} · {s.reason || s.current_step_id}
+                        </p>
+                      ))}
                     </div>
 
                     {/* Toggle Active */}
@@ -406,7 +439,12 @@ export default function FlowsManager({
       {/* Modal / Editor Completo de Fluxo */}
       {editingFlow && (
         <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 z-50 overflow-y-auto">
-          <div className="my-8 w-full max-w-4xl glass-panel border border-slate-800 rounded-2xl p-6 space-y-6 max-h-[90vh] flex flex-col overflow-hidden">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Editor de fluxo"
+            className="my-8 w-full max-w-4xl glass-panel border border-slate-800 rounded-2xl p-6 space-y-6 max-h-[90vh] flex flex-col overflow-hidden"
+          >
             {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-slate-800 pb-4 flex-shrink-0">
               <div>
@@ -526,6 +564,28 @@ export default function FlowsManager({
               </div>
 
               {/* 2. Árvore de Etapas / Passos do Fluxo */}
+              <CategoryField
+                value={editingFlow.messageCategory}
+                error={categoryError}
+                onChange={(messageCategory) => {
+                  setEditingFlow({ ...editingFlow, messageCategory });
+                  setFlowPreview(null);
+                  setCategoryError("");
+                }}
+              />
+              <label className="block">
+                <input
+                  type="checkbox"
+                  checked={!!editingFlow.active}
+                  onChange={(e) =>
+                    setEditingFlow({
+                      ...editingFlow,
+                      active: e.target.checked ? 1 : 0,
+                    })
+                  }
+                />{" "}
+                Ativar fluxo ao salvar (desmarque para rascunho)
+              </label>
               <div className="space-y-4 text-xs">
                 <div className="flex items-center justify-between">
                   <h4 className="font-bold text-slate-200 uppercase tracking-wider text-[11px] flex items-center gap-2">
@@ -567,42 +627,49 @@ export default function FlowsManager({
 
                         <div className="flex items-center gap-3">
                           {/* Tipo de Mídia */}
-                          <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800">
-                            {[
-                              {
-                                type: "TEXT",
-                                label: "Texto",
-                                icon: MessageSquare,
-                              },
-                              {
-                                type: "IMAGE",
-                                label: "Imagem",
-                                icon: ImageIcon,
-                              },
-                              { type: "AUDIO", label: "Áudio", icon: Mic },
-                              { type: "VIDEO", label: "Vídeo", icon: Video },
-                            ].map((item) => {
-                              const Icon = item.icon;
-                              const isActive = step.type === item.type;
-                              return (
-                                <button
-                                  type="button"
-                                  key={item.type}
-                                  onClick={() =>
-                                    handleUpdateStep(stepIdx, "type", item.type)
-                                  }
-                                  className={`px-2.5 py-1 rounded-lg flex items-center gap-1 text-[11px] font-semibold transition-all ${
-                                    isActive
-                                      ? "bg-emerald-500 text-slate-950 shadow-sm"
-                                      : "text-slate-400 hover:text-white"
-                                  }`}
-                                >
-                                  <Icon className="w-3 h-3" />
-                                  {item.label}
-                                </button>
-                              );
-                            })}
-                          </div>
+                          {(step.messageCategory ||
+                            editingFlow.messageCategory) === "SERVICE" && (
+                            <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800">
+                              {[
+                                {
+                                  type: "TEXT",
+                                  label: "Texto",
+                                  icon: MessageSquare,
+                                },
+                                {
+                                  type: "IMAGE",
+                                  label: "Imagem",
+                                  icon: ImageIcon,
+                                },
+                                { type: "AUDIO", label: "Áudio", icon: Mic },
+                                { type: "VIDEO", label: "Vídeo", icon: Video },
+                              ].map((item) => {
+                                const Icon = item.icon;
+                                const isActive = step.type === item.type;
+                                return (
+                                  <button
+                                    type="button"
+                                    key={item.type}
+                                    onClick={() =>
+                                      handleUpdateStep(
+                                        stepIdx,
+                                        "type",
+                                        item.type,
+                                      )
+                                    }
+                                    className={`px-2.5 py-1 rounded-lg flex items-center gap-1 text-[11px] font-semibold transition-all ${
+                                      isActive
+                                        ? "bg-emerald-500 text-slate-950 shadow-sm"
+                                        : "text-slate-400 hover:text-white"
+                                    }`}
+                                  >
+                                    <Icon className="w-3 h-3" />
+                                    {item.label}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
 
                           <button
                             type="button"
@@ -616,87 +683,115 @@ export default function FlowsManager({
                       </div>
 
                       {/* Media URL Input if applicable */}
-                      {(step.type === "IMAGE" ||
-                        step.type === "AUDIO" ||
-                        step.type === "VIDEO") && (
-                        <div className="space-y-1">
-                          <label className="font-semibold text-slate-300 flex items-center gap-1.5">
-                            <ExternalLink className="w-3.5 h-3.5 text-emerald-400" />
-                            URL da Mídia (
-                            {step.type === "IMAGE"
-                              ? "Imagem JPG/PNG"
-                              : step.type === "AUDIO"
-                                ? "Áudio MP3/OGG (Voz)"
-                                : "Vídeo MP4"}
-                            )
-                          </label>
-                          <input
-                            type="url"
-                            value={step.mediaUrl || ""}
-                            onChange={(e) =>
-                              handleUpdateStep(
-                                stepIdx,
-                                "mediaUrl",
-                                e.target.value,
-                              )
-                            }
-                            placeholder="https://exemplo.com/arquivo.mp4"
-                            className="w-full px-3.5 py-2 rounded-xl glass-input text-white font-mono text-[11px]"
-                          />
-                        </div>
-                      )}
+                      <MessageConfig
+                        value={step}
+                        inheritCategory={editingFlow.messageCategory}
+                        formats={false}
+                        onChange={(updated) => {
+                          const steps = [...editingFlow.steps];
+                          steps[stepIdx] = updated;
+                          setEditingFlow({ ...editingFlow, steps });
+                          setFlowPreview(null);
+                        }}
+                        error={
+                          step.overrideCategory &&
+                          !step.messageCategory &&
+                          categoryError
+                            ? categoryError
+                            : ""
+                        }
+                      />
+                      {(!editingFlow.messageCategory ||
+                        (step.messageCategory ||
+                          editingFlow.messageCategory) === "SERVICE") && (
+                        <>
+                          {(step.type === "IMAGE" ||
+                            step.type === "AUDIO" ||
+                            step.type === "VIDEO") && (
+                            <div className="space-y-1">
+                              <label className="font-semibold text-slate-300 flex items-center gap-1.5">
+                                <ExternalLink className="w-3.5 h-3.5 text-emerald-400" />
+                                URL da Mídia (
+                                {step.type === "IMAGE"
+                                  ? "Imagem JPG/PNG"
+                                  : step.type === "AUDIO"
+                                    ? "Áudio MP3/OGG (Voz)"
+                                    : "Vídeo MP4"}
+                                )
+                              </label>
+                              <input
+                                type="url"
+                                value={step.mediaUrl || ""}
+                                onChange={(e) =>
+                                  handleUpdateStep(
+                                    stepIdx,
+                                    "mediaUrl",
+                                    e.target.value,
+                                  )
+                                }
+                                placeholder="https://exemplo.com/arquivo.mp4"
+                                className="w-full px-3.5 py-2 rounded-xl glass-input text-white font-mono text-[11px]"
+                              />
+                            </div>
+                          )}
 
-                      {/* Conteúdo da Mensagem / Legenda */}
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between">
-                          <label className="font-semibold text-slate-300">
-                            {step.type === "TEXT"
-                              ? "Mensagem de Texto"
-                              : "Legenda / Mensagem de Acompanhamento"}
-                          </label>
-                          <div className="flex items-center gap-1 text-[10px] text-slate-400">
-                            <span>Variáveis:</span>
-                            <button
-                              type="button"
-                              onClick={() =>
+                          {/* Conteúdo da Mensagem / Legenda */}
+                          <div className="space-y-1">
+                            <div className="flex items-center justify-between">
+                              <label className="font-semibold text-slate-300">
+                                {step.type === "TEXT"
+                                  ? "Mensagem de Texto"
+                                  : "Legenda / Mensagem de Acompanhamento"}
+                              </label>
+                              <div className="flex items-center gap-1 text-[10px] text-slate-400">
+                                <span>Variáveis:</span>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleUpdateStep(
+                                      stepIdx,
+                                      "content",
+                                      (step.content || "") + " {nome}",
+                                    )
+                                  }
+                                  className="px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-emerald-400"
+                                >
+                                  &#123;nome&#125;
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleUpdateStep(
+                                      stepIdx,
+                                      "content",
+                                      (step.content || "") + " {categoria}",
+                                    )
+                                  }
+                                  className="px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-emerald-400"
+                                >
+                                  &#123;categoria&#125;
+                                </button>
+                              </div>
+                            </div>
+                            <textarea
+                              rows="3"
+                              required
+                              value={step.content || ""}
+                              onChange={(e) =>
                                 handleUpdateStep(
                                   stepIdx,
                                   "content",
-                                  (step.content || "") + " {nome}",
+                                  e.target.value,
                                 )
                               }
-                              className="px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-emerald-400"
-                            >
-                              &#123;nome&#125;
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                handleUpdateStep(
-                                  stepIdx,
-                                  "content",
-                                  (step.content || "") + " {categoria}",
-                                )
-                              }
-                              className="px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-emerald-400"
-                            >
-                              &#123;categoria&#125;
-                            </button>
+                              placeholder="Digite a mensagem que o lead receberá..."
+                              className="w-full px-3.5 py-2.5 rounded-xl glass-input text-white resize-none"
+                            ></textarea>
                           </div>
-                        </div>
-                        <textarea
-                          rows="3"
-                          required
-                          value={step.content || ""}
-                          onChange={(e) =>
-                            handleUpdateStep(stepIdx, "content", e.target.value)
-                          }
-                          placeholder="Digite a mensagem que o lead receberá..."
-                          className="w-full px-3.5 py-2.5 rounded-xl glass-input text-white resize-none"
-                        ></textarea>
-                      </div>
 
-                      {/* Configurações Adicionais da Etapa: Atraso & Troca de Categoria */}
+                          {/* Configurações Adicionais da Etapa: Atraso & Troca de Categoria */}
+                        </>
+                      )}
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-3 rounded-xl bg-slate-950/60 border border-slate-800/80">
                         <div className="space-y-1">
                           <label className="font-semibold text-slate-400 flex items-center gap-1.5 text-[11px]">
@@ -724,8 +819,8 @@ export default function FlowsManager({
 
                         <div className="space-y-1">
                           <label className="font-semibold text-slate-400 flex items-center gap-1.5 text-[11px]">
-                            <Tag className="w-3 h-3 text-purple-400" /> Mudar
-                            Categoria Automaticamente
+                            <Tag className="w-3 h-3 text-purple-400" /> Mover
+                            contato para categoria
                           </label>
                           <select
                             value={
@@ -878,6 +973,54 @@ export default function FlowsManager({
               </div>
 
               {/* Modal Footer Buttons */}
+              <div className="space-y-3">
+                <button
+                  type="button"
+                  className="btn"
+                  disabled={busy}
+                  onClick={async () => {
+                    try {
+                      const p = await api("/flows/preview", {
+                        method: "POST",
+                        body: JSON.stringify(editingFlow),
+                      });
+                      setFlowPreview(p);
+                      setCategoryError("");
+                    } catch (e) {
+                      setCategoryError(e.message);
+                    }
+                  }}
+                >
+                  Prévia de elegibilidade e custos do fluxo
+                </button>
+                {flowPreview && (
+                  <>
+                    <p className="notice">{flowPreview.note}</p>
+                    {flowPreview.steps.map((s) => (
+                      <div key={s.id}>
+                        <p>Etapa {s.id}</p>
+                        <CostPreview preview={s} />
+                      </div>
+                    ))}
+                  </>
+                )}
+                {!!editingFlow.review_required && (
+                  <label className="block">
+                    <input
+                      type="checkbox"
+                      checked={!!editingFlow.reviewed}
+                      onChange={(e) =>
+                        setEditingFlow({
+                          ...editingFlow,
+                          reviewed: e.target.checked,
+                        })
+                      }
+                    />{" "}
+                    Revisei categoria, modelos e prévia antes de reativar o
+                    fluxo antigo
+                  </label>
+                )}
+              </div>
               <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-800">
                 <button
                   type="button"

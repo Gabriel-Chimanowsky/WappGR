@@ -84,7 +84,7 @@ test("migração com WAL: backup consistente, legado preservado, restauração e
   db = openDatabase(file);
   assert.equal(
     db.prepare("SELECT COUNT(*) n FROM schema_migrations").get().n,
-    2,
+    3,
   );
   db.close();
   const restored = path.join(dir, "restored.db");
@@ -122,7 +122,7 @@ test("migração v1 para v2 preserva contagem antiga e reconcilia somente mensag
   assert.equal(
     db.prepare("SELECT MAX(version) version FROM schema_migrations").get()
       .version,
-    2,
+    3,
   );
   db.close();
 });

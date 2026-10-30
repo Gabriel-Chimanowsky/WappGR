@@ -44,7 +44,7 @@ test("API protegida, CSRF/CORS, webhook desabilitado, idempotência e simuladore
   const connection = await (
     await req("/connection/status", "GET", null, h)
   ).json();
-  assert.equal(connection.transport, "BAILEYS");
+  assert.equal(connection.transport, "CLOUD_API");
   assert.equal(connection.cloudApiPrepared, undefined);
   assert.equal(
     (
@@ -90,7 +90,12 @@ test("API protegida, CSRF/CORS, webhook desabilitado, idempotência e simuladore
   assert.equal(f.db.prepare("SELECT COUNT(*) n FROM leads").get().n, before);
   assert.equal(f.calls.length, 0);
   assert.equal(f.db.prepare("SELECT COUNT(*) n FROM outbound_jobs").get().n, 0);
-  const body = { title: "API", message: "Oi", batchSize: 40 },
+  const body = {
+      title: "API",
+      message: "Oi",
+      batchSize: 40,
+      messageCategory: "SERVICE",
+    },
     headers = { ...h, "Idempotency-Key": "http-duplicate" };
   const first = await (
       await req("/campaigns/send", "POST", body, headers)

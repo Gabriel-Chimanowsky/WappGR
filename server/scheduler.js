@@ -1,12 +1,18 @@
 const { id, utc, text, zone, fail } = require("./domain");
 const { nextOccurrence, localDate } = require("./time");
+const official = require("./official-policy");
 class Scheduler {
   constructor(db, campaigns, { now = Date.now } = {}) {
     this.db = db;
     this.campaigns = campaigns;
     this.now = now;
   }
-  create(body) {
+  create(body, scheduleId = null) {
+    const active = body.active === false || body.active === 0 ? 0 : 1;
+    const messageConfig = official.validateMessage(this.db, body, {
+      required: !!active,
+      now: this.now(),
+    });
     const recurrence = body.recurrence || "DAILY";
     if (
       !["DAILY", "EVERY_OTHER_DAY", "SPECIFIC_DAYS", "ONCE"].includes(
@@ -68,7 +74,11 @@ class Scheduler {
       .run(
         row.id,
         text(body.title, "Título", 200),
-        text(body.message, "Mensagem", 10000),
+        messageConfig.messageCategory === "SERVICE" &&
+          active &&
+          (messageConfig.type || "TEXT") === "TEXT"
+          ? text(body.message, "Mensagem", 4096)
+          : String(body.message || "").slice(0, 4096),
         body.categoryFilter || "TODOS",
         categoryId,
         recurrence,
@@ -81,6 +91,49 @@ class Scheduler {
         JSON.stringify(config),
         utc(this.now()),
       );
+    this.db
+      .prepare(
+        "UPDATE schedules SET active=?,message_category=?,message_config_json=? WHERE id=?",
+      )
+      .run(
+        active,
+        messageConfig.messageCategory,
+        JSON.stringify(messageConfig),
+        row.id,
+      );
+    if (scheduleId) {
+      const saved = this.db
+        .prepare("SELECT * FROM schedules WHERE id=?")
+        .get(row.id);
+      const fields = [
+        "title",
+        "message",
+        "category_filter",
+        "category_id",
+        "recurrence",
+        "time_of_day",
+        "specific_days",
+        "pacing_seconds",
+        "timezone",
+        "start_date",
+        "next_run_at",
+        "config_json",
+        "active",
+        "message_category",
+        "message_config_json",
+      ];
+      this.db
+        .prepare(
+          "UPDATE schedules SET " +
+            fields.map((f) => f + "=?").join(",") +
+            ",review_required=0,reviewed_at=?,reason=NULL WHERE id=?",
+        )
+        .run(...fields.map((f) => saved[f]), utc(this.now()), scheduleId);
+      this.db.prepare("DELETE FROM schedules WHERE id=?").run(row.id);
+      return this.db
+        .prepare("SELECT * FROM schedules WHERE id=?")
+        .get(scheduleId);
+    }
     return this.db.prepare("SELECT * FROM schedules WHERE id=?").get(row.id);
   }
   tick() {
@@ -88,6 +141,10 @@ class Scheduler {
     for (const s of this.db
       .prepare("SELECT * FROM schedules WHERE active=1")
       .all()) {
+      if (s.review_required) {
+        this.db.prepare("UPDATE schedules SET active=0 WHERE id=?").run(s.id);
+        continue;
+      }
       if (!s.next_run_at) {
         this.db
           .prepare(
@@ -136,6 +193,7 @@ class Scheduler {
             const result = this.campaigns.create(
               {
                 ...config,
+                ...JSON.parse(s.message_config_json),
                 title: s.title,
                 message: s.message,
                 selection,
@@ -151,7 +209,12 @@ class Scheduler {
             campaignId = result.campaign.id;
           } catch (e) {
             if (e.code === "NO_AUDIENCE") finalStatus = "SKIPPED_NO_AUDIENCE";
-            else throw e;
+            else {
+              this.db
+                .prepare("UPDATE schedules SET active=0,reason=? WHERE id=?")
+                .run(e.code + ": " + e.message, s.id);
+              finalStatus = "SUSPENDED_" + (e.code || "VALIDATION");
+            }
           }
         }
         this.db
@@ -164,7 +227,12 @@ class Scheduler {
           .prepare(
             "UPDATE schedules SET last_run_at=?,next_run_at=?,active=? WHERE id=?",
           )
-          .run(now, next, next ? 1 : 0, s.id);
+          .run(
+            now,
+            next,
+            next && !finalStatus.startsWith("SUSPENDED_") ? 1 : 0,
+            s.id,
+          );
       })();
     }
   }

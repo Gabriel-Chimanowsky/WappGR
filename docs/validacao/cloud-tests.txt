@@ -1,0 +1,143 @@
+
+> wappgr@1.0.0 pretest
+> npm run build
+
+
+> wappgr@1.0.0 build
+> vite build
+
+npm.cmd : (!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to 
+become the default in a future major version of Vite:
+No linha:2 caractere:155
++ ... LASTEXITCODE"; npm.cmd test *> docs/validacao/cloud-tests.txt; Write- ...
++                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ((!) Your Vite c...ersion of Vite::String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+  - ESM syntax in a file loaded as CommonJS (vite.config.js:1:1). Use a `.mjs` extension or set `"type": "module"` in 
+the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+vite v8.2.2 building client environment for production...
+transforming...
+✓ 2397 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                   1.38 kB │ gzip:   0.79 kB
+dist/assets/index-uOamrb10.css   47.45 kB │ gzip:   8.30 kB
+dist/assets/index-Cl2n7I8n.js   697.03 kB │ gzip: 202.79 kB
+
+✓ built in 730ms
+[plugin builtin:vite-reporter] 
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rolldownOptions.output.codeSplitting to improve chunking: 
+https://rolldown.rs/reference/OutputOptions.codeSplitting
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+npm notice
+npm notice New major version of npm available! 11.17.0 -> 12.2.1
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.1
+npm notice To update run: npm install -g npm@12.2.1
+npm notice
+
+> wappgr@1.0.0 test
+> node --test --test-concurrency=1 test/*.test.cjs
+
+✔ API protegida, CSRF/CORS, webhook desabilitado, idempotência e simuladores isolados (340.5156ms)
+✔ API: proteção de todos os módulos, webhook preserva opt-out e métricas distinguem falha/envio/entrega (255.8717ms)
+✔ backend real: campanha continua sem conexões HTTP e após expirar login; cron, entrada e fluxo são autônomos (4214.1509ms)
+✔ operação: rotação mantém quantidade limitada de logs e conteúdo JSON (66.7338ms)
+✔ operação Windows: PowerShell possui sintaxe válida e preparação não registra tarefa (874.7216ms)
+✔ categoria: enum único, rascunho incompleto, backend exige categoria ao executar cada módulo (49.2204ms)
+✔ fluxo: categoria herdada, substituição explícita e revisão de modelos compatíveis (19.7707ms)
+✔ catálogo: sincronização paginada, cache, pausa/rejeição/remoção/reclassificação suspende sem alterar intenção (150.3585ms)
+✔ Serviço: janela individual, limite exato, empresa e histórico Baileys não abrem a janela (27.9891ms)
+✔ Serviço: expira após espera, pausa, reinício e preparação de mídia; sessão aguarda nova entrada sem loop (33.9508ms)
+Falha interna: Simulated durable write failure
+✔ webhook HTTP: assinatura bruta, token distinto, persistência antes do ACK, deduplicação e processamento sem sessão (128.9063ms)
+✔ IDs oficiais: aceite sem entrega, recibos repetidos/fora de ordem, cobrança e resultado incerto sem duplicação (36.5519ms)
+✔ recibo antes da resposta associa o ID oficial e falha não regride confirmação de entrega (25.4928ms)
+✔ custos sintéticos: desconhecido não vira zero, versão/fonte/data e orçamento bloqueiam antes da chamada (23.6354ms)
+✔ falha oficial antes do aceite HTTP prevalece e não permite nova tentativa automática (44.8046ms)
+Backup consistente criado: C:\Users\Suki\AppData\Local\Temp\wappgr-cloud-migration-AY90fi\backups\before-v3-1793309549424-07d5b3c9-e520-442e-8826-ec66678fc3f3.sqlite
+WappGR em http://127.0.0.1:54104
+✔ configuração administrativa: autenticação, CSRF, segredo recusado e identidade vinculada (163.1731ms)
+✔ áudio: Graph sem legenda; fluxo envia acompanhamento em texto separado (24.6295ms)
+✔ migração v2 para v3: backup WAL íntegro, histórico e restrição preservados, nenhuma retomada automática (337.9534ms)
+✔ inicialização oficial não carrega Baileys, sockets ou QR e preserva credenciais antigas (142.0531ms)
+✔ conexão: inicializações repetidas compartilham socket e logout cancela inicialização pendente (33.6013ms)
+✔ conexão: logout aguarda gravação de credenciais simuladas sem recriar autenticação depois (2.8505ms)
+✔ Baileys legado isolado (fora da inicialização oficial): campanha fora de 24h, entrada deduplicada, opt-out e restrição após reconexão (64.1091ms)
+✔ Baileys legado isolado (fora da inicialização oficial): erro de rede conserva resultado incerto sem retry (27.0206ms)
+✔ Baileys: parada controlada fecha socket sem logout e preserva credenciais (8.1902ms)
+✔ Baileys: falha transitória de inicialização reconecta sem operador e restrição impede reconexão automática (131.2904ms)
+✔ fluxo: categoria, fim vazio, deduplicação e atraso único (32.5708ms)
+✔ fluxo: continuidade recuperada, desativação interrompe, exclusão remove sessão (24.1849ms)
+✔ fluxo: rejeita destinos e ciclos automáticos, permite retorno interativo (21.9845ms)
+✔ campanha, cron, fluxo e chat atravessam a mesma cadência (56.776ms)
+✔ Cloud API operacional: 24h, modelo aprovado, resultado incerto, restrição e recibo (20.9575ms)
+✔ CSV: barra vertical, aspas, separadores, multilinha e roundtrip de consentimento (24.5428ms)
+✔ janela por destinatário: entrada antiga não renova 24h após reinício nem com envio humano (19.5416ms)
+✔ entrada aguardando processamento conserva instante recebido e autorização antiga não revoga opt-out (19.4184ms)
+✔ transporte Baileys: mídia usa preflight após download e preserva classificação de falha (20.2848ms)
+✔ processo real: pausa após 17, SIGKILL, recuperação pausada e saldo 23 (883.6646ms)
+✔ processo real: pausa com chamada em andamento, sem confirmação prematura (236.9267ms)
+✔ processo real: queda durante chamada deixa incerto sem reenvio (370.0841ms)
+✔ processo real: provedor aceitou, SIGKILL antes do commit, reconciliação por ID (348.1634ms)
+✔ processo real: cadência reservada antes da rede e renovada ao recuperar envio interrompido (367.836ms)
+✔ processo real: reiniciar intervalo preserva horário e não compensa lotes (822.1016ms)
+✔ processo real: desconexão, comandos repetidos, opt-out e reconexão (327.6081ms)
+✔ processo real: worker continua sem navegador e segunda instância é recusada (783.8304ms)
+✔ processo real: restrição permanece após SIGKILL, 24h e reconexão até revisão explícita (405.8156ms)
+✔ 1000 contatos: 25 lotes, 24 intervalos medidos após término e nenhuma espera final (6843.6292ms)
+✔ pausa no 17 preserva o saldo de 23, sem reenviar confirmados (127.3105ms)
+✔ pausa com chamada em voo só confirma pausa após resultado (33.4832ms)
+✔ pausar intervalo e retomar não antecipa horário mínimo (131.1158ms)
+✔ modo manual exige autorização independente de continuar e do relógio (30.022ms)
+✔ desconexão não consome tentativas; reconexão respeita pausa (31.3455ms)
+✔ recepção de opt-out tem prioridade e impede destinatário pendente (27.5404ms)
+✔ exclusão e alteração de identidade não redirecionam a audiência (22.7061ms)
+✔ criação e comandos idempotentes com associação ao conteúdo (22.0713ms)
+✔ duas aquisições do mesmo trabalho não geram chamada duplicada (22.2587ms)
+✔ recuperação marca chamada interrompida incerta e recibo reconcilia (21.2074ms)
+✔ retry transitório consome vaga, respeita backoff e limite do lote (29.4432ms)
+✔ retry seletivo adiciona uma tentativa limitada e preserva histórico (23.8388ms)
+✔ resultado incerto e falha permanente nunca recebem retry automático (43.5021ms)
+✔ cancelamento preserva sucessos e impede novos envios (32.1824ms)
+✔ campanha e respostas compartilham uma chamada e cadência global (43.1453ms)
+✔ filtro acima de 10000, exclusões, ordenação e snapshot congelado (345.2591ms)
+✔ ONCE cria execução rastreável uma vez e desativa regra (21.3241ms)
+✔ recorrência alternada usa calendário e limita recuperação de atrasos (24.4984ms)
+✔ reimportação e cadastro não inventam autorização (20.446ms)
+✔ recibos são necessários para entrega e leitura, nunca deduzidos do envio (22.5039ms)
+✔ restrição de conta persiste além de 24h e exige revisão mais continuação (26.6762ms)
+✔ mudança de telefone não transfere autorização ou janela, e conserva recusa explícita (18.2586ms)
+✔ seleção malformada não amplia audiência silenciosamente (18.6593ms)
+✔ recibo durante chamada mantém pausa solicitada até retorno real (31.9359ms)
+✔ campanha criada durante restrição também exige revisão e continuação manual (25.0427ms)
+✔ opt-out atrás de outras entradas é processado antes do destinatário pendente (50.2056ms)
+✔ execução real: setup-admin, servidor Node, sessão HTTP e pareamento isolado preservado (807.5704ms)
+✔ CLI de restauração conserva evidência, bloqueia filas e exige reconciliação de trabalhos posteriores ao backup (437.4476ms)
+Backup consistente criado: C:\Users\Suki\AppData\Local\Temp\wappgr-storage-d9w578\backups\before-v3-1793309564651-5493eef0-19e7-4a6e-b003-9887b99895f5.sqlite
+Backup consistente criado: C:\Users\Suki\AppData\Local\Temp\wappgr-storage-d9w578\backups\before-v3-1793309564721-c22aec3a-6f68-4710-a191-39d27f0a4527.sqlite
+Backup consistente criado: C:\Users\Suki\AppData\Local\Temp\wappgr-upgrade-yNzZ7p\backups\before-v3-1793309564906-ea625163-98b8-4d39-91ef-d49cda25188f.sqlite
+✔ Node SQLite: bindings, transactions, savepoints, rollback e foreign keys (26.9734ms)
+✔ migração com WAL: backup consistente, legado preservado, restauração e reabertura (234.1084ms)
+✔ migração v1 para v2 preserva contagem antiga e reconcilia somente mensagens comprovadas (162.4778ms)
+✔ migração conserva comandos textuais de descadastro e remove apenas opções numéricas (18.1108ms)
+✔ supervisor real: terminal iniciador encerra, backend segue; reinício sem replay, instância única e parada persistente (2444.5982ms)
+✔ supervisor: falhas usam espera progressiva e limite persistente; configuração inválida não reinicia em loop (1282.4303ms)
+✔ supervisor: parada durante envio preserva resultado incerto e retomada não repete o destinatário (3647.0499ms)
+✔ configuração: .env explícito e caminhos relativos são resolvidos pela raiz mesmo fora do projeto (78.3209ms)
+ℹ tests 80
+ℹ suites 0
+ℹ pass 80
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 30331.7597
+npm notice
+npm notice New major version of npm available! 11.17.0 -> 12.2.1
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.1
+npm notice To update run: npm install -g npm@12.2.1
+npm notice

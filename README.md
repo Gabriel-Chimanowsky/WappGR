@@ -2,7 +2,7 @@
 
 Gestão de contatos e automações para WhatsApp com React, Express e SQLite. Campanhas usam fila persistente com lotes, pausa, retomada, cancelamento, auditoria e relatório por destinatário.
 
-O transporte ativo é exclusivamente **Baileys**, por pareamento do WhatsApp. Lotes e intervalos são controles operacionais, sem promessa de evitar bloqueios. Não são necessárias conta Meta, credenciais oficiais ou templates aprovados. Os arquivos preparatórios da Cloud API foram preservados fora do caminho ativo; essa integração está fora do escopo.
+O transporte ativo é a **Cloud API oficial da Meta**, sem inicialização ou fallback para Baileys. Conta Meta, credenciais no servidor, webhook HTTPS e modelos aprovados são necessários conforme a categoria. Lotes e intervalos controlam a fila; não garantem disponibilidade, gratuidade ou ausência de restrições. Consulte o [guia Cloud API, configuração e atualização na Contabo](docs/CLOUD_API.md).
 
 ## Instalação
 
@@ -47,8 +47,8 @@ Use `npm.cmd run service:stop` para parar e `npm.cmd run service:remove` para re
 ## Exemplo: 1.000 contatos, lotes de 40 e duas horas
 
 1. Em **Gestão de Leads**, aplique os filtros e escolha **Selecionar todos os resultados**. A seleção inclui outras páginas; desmarque exceções ou escolha contatos individualmente.
-2. Clique em **Criar campanha com os selecionados** e confira a prévia de elegibilidade do servidor. Apenas contatos com opt-in e identidade válida entram na audiência.
-3. Preencha mensagem e título. Use **40 tentativas por lote**, **7.200 segundos entre lotes** e a cadência entre mensagens desejada. Escolha automático ou autorização manual do próximo lote.
+2. Clique em **Criar campanha com os selecionados**, escolha Serviço, Utilidade ou Marketing e confira a prévia de elegibilidade e custos do servidor. Não há categoria selecionada automaticamente.
+3. Preencha título e conteúdo: Serviço exige janela individual aberta; Utilidade/Marketing exigem modelo aprovado compatível. Use **40 tentativas por lote**, **7.200 segundos entre lotes** e a cadência desejada. Escolha automático ou autorização manual do próximo lote.
 4. Salve e acompanhe o progresso. Sem falhas, são **25 lotes e 24 intervalos**, contados após o término de cada lote.
 5. **Pausar** preserva o saldo do lote. **Continuar** trabalha na mesma campanha e mantém o horário mínimo. Em modo manual, **Autorizar próximo lote** é uma ação separada.
 6. **Cancelar restantes** preserva o histórico e impede novos envios. Uma chamada já em andamento precisa concluir ou ficar com resultado incerto.
@@ -57,9 +57,9 @@ Fechar o navegador não interrompe a execução automática. O processo Node dev
 
 ## Consentimento e restrições
 
-Campanhas e agendamentos exigem opt-in atual, revalidado antes do envio. Não há janela técnica de atendimento de 24 horas imposta a campanhas Baileys.
+Consentimento, identidade, opt-out, categoria, modelo e janela individual são revalidados antes do envio. Marketing exige opt-in. Utilidade exige autorização ou solicitação recente; selecionar essa opção não transforma promoção em utilidade.
 
-O WappGR mantém uma **regra interna de atendimento**: respostas humanas exigem entrada do cliente há menos de 24 horas **ou** opt-in; fluxos solicitados exigem entrada recente e ausência de opt-out. Esse prazo usa a última mensagem de cada cliente, não é uma exigência técnica do Baileys e não se renova com reinício ou envio do operador. Descadastro bloqueia promoções e fluxos; atendimento humano recente e confirmação de descadastro seguem suas regras próprias.
+Serviço usa a última entrada **oficial** de cada cliente há menos de 24 horas, inclusive no chat e após atrasos/retomada. Opt-in não libera texto livre fora da janela; histórico Baileys, reinício e envio da empresa não a renovam. Descadastro bloqueia promoções e fluxos; atendimento humano recente e confirmação de descadastro seguem suas regras próprias.
 
 Uma **restrição da conta** é um bloqueio operacional global persistente. Reconectar, reiniciar ou completar 24 horas não libera a fila. Em **Conectar WhatsApp**, registre a revisão após o prazo mínimo e continue cada campanha explicitamente. Lotes não contornam restrições.
 
@@ -78,6 +78,6 @@ Backup/restauração exigem o servidor parado; quando instalado em segundo plano
 
 Os testes de navegador usam Microsoft Edge headless e um servidor isolado em 127.0.0.1:3187. Nenhum teste usa a conta real de WhatsApp. Se Edge não estiver instalado, instale-o ou ajuste o canal do Playwright para um navegador de teste disponível.
 
-**Validação desta entrega:** 66 testes automatizados e três cenários de navegador aprovados, além de lint, build e instalação limpa em pasta isolada. Incluem nove cenários anteriores de recuperação da fila e novos testes de backend autônomo, supervisor, parada durante envio, rotação, parada sem logout e reconexão sem operador. Registro como SYSTEM e reboot real não foram validados por falta de privilégios. Todos os testes usam transporte sintético.
+**Validação da migração:** consulte os [resultados e capturas atuais](docs/VALIDACAO_CLOUD_API.md). Testes locais usam transporte sintético; homologação oficial e operação real não foram executadas. Não houve publicação na VPS nem migração do número. Registros anteriores ficam pendentes de revisão, preservando histórico e backup.
 
-Veja o [relatório de implementação, testes e limitações](docs/IMPLEMENTACAO_E_VALIDACAO.md), as [evidências do banco](docs/validacao/banco.json) e o [relatório histórico anterior às alterações](docs/RELATORIO_COMPLETO_WAPPGR.md).
+Os [relatórios anteriores](docs/IMPLEMENTACAO_E_VALIDACAO.md), as [evidências antigas do banco](docs/validacao/banco.json) e o [relatório histórico](docs/RELATORIO_COMPLETO_WAPPGR.md) documentam a entrega Baileys anterior. As regras operacionais atuais estão no guia Cloud API.

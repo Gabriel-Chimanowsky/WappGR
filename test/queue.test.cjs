@@ -48,6 +48,7 @@ test("pausa com chamada em voo só confirma pausa após resultado", async () => 
   const f = fixture({ send: () => new Promise((r) => (resolve = r)) }),
     c = f.create();
   const p = f.dispatcher.tick();
+  await new Promise(setImmediate);
   command(f, c, "pause");
   assert.equal(f.campaigns.get(c.id).execution_status, "PAUSE_REQUESTED");
   await f.dispatcher.tick();
@@ -307,6 +308,7 @@ test("filtro acima de 10000, exclusões, ordenação e snapshot congelado", () =
 test("ONCE cria execução rastreável uma vez e desativa regra", () => {
   const f = fixture({ count: 1 });
   f.scheduler.create({
+    ...f.messageConfig,
     title: "Regra",
     message: "Oi",
     recurrence: "ONCE",
@@ -315,7 +317,9 @@ test("ONCE cria execução rastreável uma vez e desativa regra", () => {
     timezone: "America/Sao_Paulo",
   });
   f.setTime("2026-10-15T13:00:00Z");
+  f.provider.refreshIfDue(); // Synthetic successful catalog refresh before cron.
   f.scheduler.tick();
+  f.provider.refreshIfDue(); // Synthetic successful catalog refresh before cron.
   f.scheduler.tick();
   assert.equal(
     f.db.prepare("SELECT COUNT(*) n FROM schedule_occurrences").get().n,
@@ -328,6 +332,7 @@ test("ONCE cria execução rastreável uma vez e desativa regra", () => {
 test("recorrência alternada usa calendário e limita recuperação de atrasos", () => {
   const f = fixture({ count: 1 });
   f.scheduler.create({
+    ...f.messageConfig,
     title: "Regra",
     message: "Oi",
     recurrence: "EVERY_OTHER_DAY",
@@ -336,7 +341,9 @@ test("recorrência alternada usa calendário e limita recuperação de atrasos",
     timezone: "America/Sao_Paulo",
   });
   f.setTime("2026-10-20T13:00:00Z");
+  f.provider.refreshIfDue(); // Synthetic successful catalog refresh before cron.
   f.scheduler.tick();
+  f.provider.refreshIfDue(); // Synthetic successful catalog refresh before cron.
   f.scheduler.tick();
   assert.equal(
     f.db.prepare("SELECT next_run_at FROM schedules").get().next_run_at,
@@ -469,6 +476,7 @@ test("recibo durante chamada mantém pausa solicitada até retorno real", async 
     }),
     c = f.create();
   const pending = f.dispatcher.tick();
+  await new Promise(setImmediate);
   f.dispatcher.receipt(f.calls[0].args[2], "DELIVERED");
   command(f, c, "pause");
   assert.equal(f.campaigns.get(c.id).execution_status, "PAUSE_REQUESTED");

@@ -1,6 +1,7 @@
 const { id, utc } = require("./domain");
 const { canSend } = require("./policy");
 const { ACTIVE } = require("./campaigns");
+const official = require("./official-policy");
 
 class Dispatcher {
   constructor(
@@ -67,7 +68,7 @@ class Dispatcher {
         .run();
       this.db
         .prepare(
-          "UPDATE campaigns SET execution_status='PAUSED' WHERE manual_paused=1 AND execution_status!='CANCELLED' AND cancel_requested=0",
+          "UPDATE campaigns SET execution_status='PAUSED' WHERE manual_paused=1 AND review_required=0 AND execution_status NOT IN ('CANCELLED','BUDGET_SUSPENDED') AND cancel_requested=0",
         )
         .run();
       this.db
@@ -167,7 +168,20 @@ class Dispatcher {
     dueAt = null,
     actor = "system",
     jobId = id(),
+    messageConfig,
   }) {
+    messageConfig = official.validateMessage(
+      this.db,
+      messageConfig ||
+        (["HUMAN_REPLY", "CONSENT_REPLY", "OPTOUT_CONFIRMATION"].includes(kind)
+          ? {
+              messageCategory: "SERVICE",
+              type: payload.type || "TEXT",
+              mediaUrl: payload.mediaUrl,
+            }
+          : {}),
+      { now: this.now() },
+    );
     const at = utc(this.now());
     this.db
       .prepare(
@@ -188,6 +202,17 @@ class Dispatcher {
         sourceVersion,
         actor,
       );
+    this.db
+      .prepare(
+        "UPDATE outbound_jobs SET intended_category=?,approved_category=?,sent_format=?,configuration_json=? WHERE id=? AND status='PENDING'",
+      )
+      .run(
+        messageConfig.messageCategory,
+        messageConfig.template?.approvedCategory || null,
+        messageConfig.template ? "TEMPLATE" : "FREE_FORM",
+        JSON.stringify(messageConfig),
+        jobId,
+      );
     return this.db.prepare("SELECT * FROM outbound_jobs WHERE id=?").get(jobId);
   }
   start() {
@@ -206,6 +231,11 @@ class Dispatcher {
     const c = this.campaigns.get(campaignId),
       at = utc(this.now());
     if (c.legacy || c.execution_status === "DRAFT") return;
+    if (
+      c.review_required ||
+      ["REVIEW_REQUIRED", "BUDGET_SUSPENDED"].includes(c.execution_status)
+    )
+      return;
     if (c.inFlight > 0) return;
     if (c.cancel_requested) {
       if (!(c.counts.SENDING || 0) && c.execution_status !== "CANCELLED")
@@ -302,6 +332,19 @@ class Dispatcher {
     for (const row of campaigns) {
       this.finishOrWait(row.id);
       const c = this.campaigns.get(row.id);
+      try {
+        this.campaigns.assertExecutable(c);
+      } catch (e) {
+        this.db
+          .prepare("UPDATE campaigns SET manual_paused=1 WHERE id=?")
+          .run(c.id);
+        this.campaigns.setState(
+          c.id,
+          e.code?.startsWith("BUDGET") ? "BUDGET_SUSPENDED" : "REVIEW_REQUIRED",
+          e.code + ": " + e.message,
+        );
+        continue;
+      }
       if (
         !ACTIVE.includes(c.execution_status) ||
         Date.parse(c.next_run_at) > this.now()
@@ -321,6 +364,7 @@ class Dispatcher {
     this.busy = true;
     try {
       this.beforeDispatch?.();
+      await this.provider.refreshIfDue?.();
       if (this.accountStatus().restricted) return false;
       const candidate = this.candidate();
       if (!this.connected()) {
@@ -338,7 +382,7 @@ class Dispatcher {
       if (next && Date.parse(next) > this.now()) return false;
       const job = this.db
         .prepare(
-          "SELECT * FROM outbound_jobs WHERE status='PENDING' AND due_at<=? ORDER BY priority,created_at,id LIMIT 1",
+          "SELECT * FROM outbound_jobs WHERE provider='CLOUD_API' AND status='PENDING' AND due_at<=? ORDER BY priority,created_at,id LIMIT 1",
         )
         .get(utc(this.now()));
       if (job && (!candidate || this.interactiveStreak < 3)) {
@@ -356,11 +400,18 @@ class Dispatcher {
       this.busy = false;
     }
   }
-  leadFor(snapshot, kind) {
+  leadFor(snapshot, kind, config) {
     const lead = this.db
       .prepare("SELECT * FROM leads WHERE id=?")
       .get(snapshot.lead_id);
-    const reason = canSend(lead, kind, this.now());
+    const denied = config
+      ? official.eligibility(lead, config.messageCategory, this.now(), kind)
+      : null;
+    const reason = denied
+      ? denied.code + ": " + denied.reason
+      : config
+        ? null
+        : canSend(lead, kind, this.now());
     if (reason) return { reason };
     if (
       lead.phone !== snapshot.phone_snapshot ||
@@ -369,7 +420,7 @@ class Dispatcher {
       return { reason: "Identidade do contato mudou desde a preparação" };
     return { lead };
   }
-  messageRow(jobId, lead, payload, kind, campaignId, providerId) {
+  messageRow(jobId, lead, payload, kind, campaignId, providerId, config) {
     this.db
       .prepare(
         "INSERT INTO messages(id,lead_id,lead_phone,lead_name,direction,text,type,whatsapp_msg_id,campaign_id,timestamp,status,job_id) VALUES(?,?,?,?,'OUTBOUND',?,?,?,?,?,'SENDING',?)",
@@ -381,15 +432,46 @@ class Dispatcher {
         lead.name,
         payload.text || payload.caption || "[" + payload.type + "]",
         kind,
-        providerId,
+        null,
         campaignId,
         utc(this.now()),
+        jobId,
+      );
+    this.db
+      .prepare(
+        "UPDATE messages SET correlation_id=?,intended_category=?,approved_category=?,sent_format=?,configuration_json=? WHERE job_id=?",
+      )
+      .run(
+        providerId,
+        config.messageCategory,
+        config.template?.approvedCategory || null,
+        config.template ? "TEMPLATE" : "FREE_FORM",
+        JSON.stringify(config),
+        jobId,
+      );
+    this.db
+      .prepare("UPDATE messages SET estimate_json=? WHERE job_id=?")
+      .run(
+        JSON.stringify(official.estimate(this.db, config, [lead], this.now())),
+        jobId,
+      );
+    if (config.template)
+      this.db.prepare("UPDATE messages SET text=? WHERE job_id=?").run(
+        "[Modelo " +
+          config.template.name +
+          " · " +
+          config.template.language +
+          "]\n" +
+          config.template.components
+            .filter((c) => c.text)
+            .map((c) => c.text)
+            .join("\n"),
         jobId,
       );
   }
   async processRecipient(c, r) {
     this.beforeDispatch?.(r.lead_id);
-    const checked = this.leadFor(r, "PROMOTIONAL");
+    const checked = this.leadFor(r, "CAMPAIGN", c.messageConfig);
     if (checked.reason) {
       this.db
         .prepare(
@@ -464,6 +546,7 @@ class Dispatcher {
         "PROMOTIONAL",
         c.id,
         providerId,
+        c.messageConfig,
       );
       this.holdCadence(
         Math.max(this.minSpacingMs, c.config.pacingSeconds * 1000),
@@ -474,19 +557,32 @@ class Dispatcher {
     })();
     if (!claim) return;
     const result = await this.callProvider(
-      r.jid_snapshot || r.phone_snapshot,
-      { type: "TEXT", text: r.message_snapshot },
+      r.phone_snapshot,
+      {
+        type: c.messageConfig.type || "TEXT",
+        text: r.message_snapshot,
+        mediaUrl: c.messageConfig.mediaUrl,
+      },
       claim.providerId,
       checked.lead,
       () => {
         this.beforeDispatch?.(r.lead_id);
         const fresh = this.campaigns.get(c.id);
+        try {
+          this.campaigns.assertExecutable(fresh);
+        } catch (e) {
+          return e.code + ": " + e.message;
+        }
         return this.accountStatus().restricted
           ? "Conta restrita"
           : fresh.manual_paused || fresh.cancel_requested
             ? "Execução suspensa antes da chamada"
-            : this.leadFor(r, "PROMOTIONAL").reason;
+            : fresh.review_required ||
+                fresh.execution_status === "REVIEW_REQUIRED"
+              ? "REVIEW_REQUIRED: configuração suspensa"
+              : this.leadFor(r, "CAMPAIGN", c.messageConfig).reason;
       },
+      c.messageConfig,
     );
     if (result.accountRestricted)
       this.restrictAccount(result.error || "Restrição informada pelo provedor");
@@ -498,7 +594,10 @@ class Dispatcher {
         .get(r.id, claim.token, this.owner);
       if (!current) return; // fencing: a stale completion cannot replace another owner's result
       const at = utc(this.now());
-      const evidenced = ["SENT", "DELIVERED", "READ"].includes(current.status);
+      const officialFailure = current.provider_status === "FAILED";
+      const evidenced =
+        officialFailure ||
+        ["SENT", "DELIVERED", "READ"].includes(current.status);
       let state = evidenced
         ? current.status
         : result.success
@@ -507,7 +606,10 @@ class Dispatcher {
             ? "UNCERTAIN"
             : "FAILED";
       const transient =
-        !result.success && !result.uncertain && result.retryable === true;
+        !evidenced &&
+        !result.success &&
+        !result.uncertain &&
+        result.retryable === true;
       if (
         state === "FAILED" &&
         transient &&
@@ -528,7 +630,11 @@ class Dispatcher {
         .run(
           state,
           transient ? 1 : 0,
-          result.success || evidenced ? null : result.error || "Falha",
+          officialFailure
+            ? current.error
+            : result.success || evidenced
+              ? null
+              : result.error || "Falha",
           retryAt,
           ["SENT", "DELIVERED", "READ"].includes(state) ? at : null,
           at,
@@ -546,11 +652,32 @@ class Dispatcher {
               ? "FAILED"
               : state,
           at,
-          result.error || null,
+          officialFailure ? current.error : result.error || null,
           claim.attemptId,
           claim.token,
         );
       this.saveMessageResult(claim.attemptId, result, evidenced ? state : null);
+      if (result.success)
+        this.db
+          .prepare(
+            "UPDATE campaign_recipients SET provider_status=COALESCE(provider_status,'ACCEPTED') WHERE id=?",
+          )
+          .run(r.id);
+      if (
+        [
+          "INVALID_CREDENTIAL",
+          "PERMISSION_DENIED",
+          "TEMPLATE_UNAVAILABLE",
+          "CATEGORY_MISMATCH",
+          "TEMPLATE_CHANGED",
+          "TEMPLATE_STALE",
+        ].includes(result.code)
+      ) {
+        this.db
+          .prepare("UPDATE campaigns SET manual_paused=1 WHERE id=?")
+          .run(c.id);
+        this.campaigns.setState(c.id, "REVIEW_REQUIRED", result.error);
+      }
       this.campaigns.event(c.id, "ATTEMPT_RESULT", {
         recipientId: r.id,
         attempt: current.attempts,
@@ -563,12 +690,38 @@ class Dispatcher {
       this.finishOrWait(c.id);
     })();
   }
-  async callProvider(target, payload, providerId, lead, beforeSend) {
+  async callProvider(target, payload, providerId, lead, beforeSend, config) {
+    try {
+      official.validateMessage(this.db, config, { now: this.now() });
+      const reason = beforeSend?.();
+      if (reason)
+        return {
+          success: false,
+          definitelyNotSent: true,
+          code: reason.split(":")[0],
+          error: reason,
+        };
+      if (config.template)
+        payload = {
+          ...official.templatePayload(config, lead),
+          text: payload.text,
+        };
+    } catch (e) {
+      return {
+        success: false,
+        definitelyNotSent: true,
+        code: e.code,
+        error: e.code + ": " + e.message,
+      };
+    }
     try {
       const result = await this.provider.send(target, payload, providerId, {
         lastInboundAt: lead?.last_inbound_at,
         now: this.now(),
         beforeSend,
+        messageConfig: config,
+        getLead: () =>
+          this.db.prepare("SELECT * FROM leads WHERE id=?").get(lead.id),
       });
       if (!result || (!result.success && result.definitelyNotSent !== true))
         return {
@@ -591,17 +744,33 @@ class Dispatcher {
       .prepare("SELECT * FROM messages WHERE job_id=?")
       .get(jobId);
     if (!row) return;
+    if (result.success && result.messageId)
+      this.linkProvider(result.messageId, row.correlation_id);
+    if (result.success)
+      this.db
+        .prepare(
+          "UPDATE messages SET provider_status=COALESCE(provider_status,'ACCEPTED') WHERE job_id=?",
+        )
+        .run(jobId);
+    const officialFailure = row.provider_status === "FAILED";
     const success =
-      result.success ||
-      evidenced ||
-      ["SENT", "DELIVERED", "READ"].includes(row.status);
-    const state = ["DELIVERED", "READ"].includes(row.status)
-      ? row.status
-      : evidenced ||
-        (success ? "SENT" : result.uncertain ? "UNCERTAIN" : "FAILED");
+      !officialFailure &&
+      (result.success ||
+        evidenced ||
+        ["SENT", "DELIVERED", "READ"].includes(row.status));
+    const state = officialFailure
+      ? "FAILED"
+      : ["DELIVERED", "READ"].includes(row.status)
+        ? row.status
+        : evidenced ||
+          (success ? "SENT" : result.uncertain ? "UNCERTAIN" : "FAILED");
     this.db
       .prepare("UPDATE messages SET status=?,error=? WHERE job_id=?")
-      .run(state, success ? null : result.error || "Falha", jobId);
+      .run(
+        state,
+        officialFailure ? row.error : success ? null : result.error || "Falha",
+        jobId,
+      );
     if (success && row.status === "SENDING")
       this.db
         .prepare(
@@ -610,12 +779,25 @@ class Dispatcher {
         .run(utc(this.now()), row.lead_id);
   }
   jobReason(job) {
-    let reason = this.leadFor(job, job.kind).reason;
+    const config = JSON.parse(job.configuration_json);
+    let reason = this.leadFor(job, job.kind, config).reason;
+    if (!reason)
+      try {
+        official.validateMessage(this.db, config, { now: this.now() });
+      } catch (e) {
+        reason = e.code + ": " + e.message;
+      }
     if (!reason && job.kind === "REQUESTED_FLOW") {
       const flow = this.db
-        .prepare("SELECT active,updated_at FROM flows WHERE id=?")
+        .prepare(
+          "SELECT active,updated_at,review_required FROM flows WHERE id=?",
+        )
         .get(job.source_id);
-      if (!flow?.active || flow.updated_at !== job.source_version)
+      if (
+        !flow?.active ||
+        flow.review_required ||
+        flow.updated_at !== job.source_version
+      )
         reason = "Fluxo desativado ou alterado";
       if (
         !reason &&
@@ -635,9 +817,18 @@ class Dispatcher {
     if (reason) {
       this.db
         .prepare(
-          "UPDATE outbound_jobs SET status='SKIPPED',error=?,updated_at=? WHERE id=? AND status='PENDING'",
+          "UPDATE outbound_jobs SET status=?,error=?,updated_at=? WHERE id=? AND status='PENDING'",
         )
-        .run(reason, utc(this.now()), job.id);
+        .run(
+          job.kind === "REQUESTED_FLOW" && reason.startsWith("WINDOW_EXPIRED")
+            ? "WAITING_WINDOW"
+            : reason.startsWith("TEMPLATE_") || reason.startsWith("CATEGORY_")
+              ? "SUSPENDED"
+              : "SKIPPED",
+          reason,
+          utc(this.now()),
+          job.id,
+        );
       return;
     }
     const lead = this.db
@@ -652,14 +843,22 @@ class Dispatcher {
         )
         .run(providerId, utc(this.now()), job.id).changes;
       if (changed) {
-        this.messageRow(job.id, lead, payload, job.kind, null, providerId);
+        this.messageRow(
+          job.id,
+          lead,
+          payload,
+          job.kind,
+          null,
+          providerId,
+          JSON.parse(job.configuration_json),
+        );
         this.holdCadence(this.minSpacingMs);
       }
       return changed;
     })();
     if (!changed) return;
     const result = await this.callProvider(
-      job.jid_snapshot || job.phone_snapshot,
+      job.phone_snapshot,
       payload,
       providerId,
       lead,
@@ -669,32 +868,189 @@ class Dispatcher {
           ? "Conta restrita"
           : this.jobReason(job);
       },
+      JSON.parse(job.configuration_json),
     );
     if (result.accountRestricted)
       this.restrictAccount(result.error || "Restrição informada pelo provedor");
     this.db.transaction(() => {
       const previous = this.db
-        .prepare("SELECT status FROM outbound_jobs WHERE id=?")
+        .prepare(
+          "SELECT status,provider_status,error FROM outbound_jobs WHERE id=?",
+        )
         .get(job.id);
-      const state = ["SENT", "DELIVERED", "READ"].includes(previous.status)
-        ? previous.status
-        : result.success
-          ? "SENT"
-          : result.uncertain
-            ? "UNCERTAIN"
-            : "FAILED";
+      const state =
+        previous.provider_status === "FAILED"
+          ? "FAILED"
+          : ["SENT", "DELIVERED", "READ"].includes(previous.status)
+            ? previous.status
+            : result.success
+              ? "SENT"
+              : result.uncertain
+                ? "UNCERTAIN"
+                : "FAILED";
       this.db
         .prepare(
           "UPDATE outbound_jobs SET status=?,error=?,updated_at=? WHERE id=?",
         )
-        .run(state, result.error || null, utc(this.now()), job.id);
+        .run(
+          state,
+          previous.provider_status === "FAILED"
+            ? previous.error
+            : result.error || null,
+          utc(this.now()),
+          job.id,
+        );
       this.saveMessageResult(
         job.id,
         result,
         ["SENT", "DELIVERED", "READ"].includes(state) ? state : null,
       );
+      if (result.success)
+        this.db
+          .prepare(
+            "UPDATE outbound_jobs SET provider_status=COALESCE(provider_status,'ACCEPTED') WHERE id=?",
+          )
+          .run(job.id);
+      if (
+        job.kind === "REQUESTED_FLOW" &&
+        result.code === "WINDOW_EXPIRED" &&
+        result.definitelyNotSent
+      )
+        this.db
+          .prepare(
+            "UPDATE outbound_jobs SET status='WAITING_WINDOW' WHERE id=?",
+          )
+          .run(job.id);
       this.holdCadence(this.minSpacingMs);
     })();
+  }
+  linkProvider(providerId, correlationId) {
+    if (!providerId || !correlationId) return false;
+    const message = this.db
+      .prepare(
+        "SELECT * FROM messages WHERE correlation_id=? AND provider='CLOUD_API'",
+      )
+      .get(correlationId);
+    if (!message) return false;
+    const existing = this.db
+      .prepare(
+        "SELECT * FROM cloud_message_links WHERE provider_id=? OR correlation_id=?",
+      )
+      .all(providerId, correlationId);
+    if (
+      existing.some(
+        (x) =>
+          x.provider_id !== providerId || x.correlation_id !== correlationId,
+      )
+    )
+      return false;
+    this.db
+      .prepare("INSERT OR IGNORE INTO cloud_message_links VALUES(?,?,?)")
+      .run(providerId, correlationId, utc(this.now()));
+    this.db
+      .prepare("UPDATE messages SET whatsapp_msg_id=? WHERE correlation_id=?")
+      .run(providerId, correlationId);
+    return true;
+  }
+  cloudReceipt(status) {
+    const parsed = require("./cloud-api").CloudApiAdapter.parseStatus(status);
+    if (!parsed) return true;
+    const known = this.db
+      .prepare(
+        "SELECT correlation_id FROM cloud_message_links WHERE provider_id=?",
+      )
+      .get(parsed.providerId);
+    const correlation = known?.correlation_id || parsed.correlationId;
+    const message =
+      correlation &&
+      this.db
+        .prepare(
+          "SELECT * FROM messages WHERE correlation_id=? AND provider='CLOUD_API'",
+        )
+        .get(correlation);
+    if (
+      !message ||
+      (status.recipient_id && status.recipient_id !== message.lead_phone)
+    )
+      return false;
+    if (!this.linkProvider(parsed.providerId, correlation)) return false;
+    if (parsed.accountRestricted)
+      this.restrictAccount(
+        "ACCOUNT_RESTRICTED: código 131031 em recibo oficial.",
+      );
+    const pricing = status.pricing
+      ? JSON.stringify({
+          pricing: status.pricing,
+          conversation: status.conversation || null,
+          providerTimestamp: status.timestamp || null,
+        })
+      : null;
+    const previousPricing = JSON.parse(message.pricing_json || "null");
+    if (
+      pricing &&
+      (!previousPricing ||
+        Number(status.timestamp) > Number(previousPricing.providerTimestamp) ||
+        (Number(status.timestamp) ===
+          Number(previousPricing.providerTimestamp) &&
+          ["DELIVERED", "READ"].includes(parsed.state)))
+    ) {
+      this.db
+        .prepare("UPDATE messages SET pricing_json=? WHERE correlation_id=?")
+        .run(pricing, correlation);
+      this.db
+        .prepare("UPDATE outbound_jobs SET pricing_json=? WHERE provider_id=?")
+        .run(pricing, correlation);
+    }
+    if (parsed.state === "FAILED") {
+      const code = status.errors?.[0]?.code;
+      const [kind, reason] = require("./cloud-api").classify(code);
+      const error =
+        kind + ": " + reason + " Código Meta: " + (code || "desconhecido");
+      // Failure can supersede accepted/sent, never delivered/read. No receipt creates a retry.
+      this.db
+        .prepare(
+          "UPDATE messages SET status='FAILED',provider_status='FAILED',error=? WHERE correlation_id=? AND status NOT IN ('DELIVERED','READ')",
+        )
+        .run(error, correlation);
+      this.db
+        .prepare(
+          "UPDATE outbound_jobs SET status='FAILED',provider_status='FAILED',error=? WHERE provider_id=? AND status NOT IN ('DELIVERED','READ')",
+        )
+        .run(error, correlation);
+      const attempt = this.db
+        .prepare("SELECT * FROM send_attempts WHERE provider_id=?")
+        .get(correlation);
+      if (attempt) {
+        this.db
+          .prepare(
+            "UPDATE campaign_recipients SET status='FAILED',provider_status='FAILED',retryable=0,error=? WHERE id=? AND status NOT IN ('DELIVERED','READ')",
+          )
+          .run(error, attempt.recipient_id);
+        const r = this.db
+          .prepare("SELECT campaign_id FROM campaign_recipients WHERE id=?")
+          .get(attempt.recipient_id);
+        this.finishOrWait(r.campaign_id);
+      }
+      return true;
+    }
+    if (message.provider_status === "FAILED" && parsed.state === "SENT")
+      return true;
+    this.receipt(correlation, parsed.state);
+    for (const [table, column] of [
+      ["messages", "correlation_id"],
+      ["outbound_jobs", "provider_id"],
+      ["campaign_recipients", "provider_id"],
+    ])
+      this.db
+        .prepare(
+          `UPDATE ${table} SET provider_status=? WHERE ${column}=? AND CASE provider_status WHEN 'READ' THEN 3 WHEN 'DELIVERED' THEN 2 WHEN 'SENT' THEN 1 ELSE 0 END<=?`,
+        )
+        .run(
+          parsed.state,
+          correlation,
+          { SENT: 1, DELIVERED: 2, READ: 3 }[parsed.state],
+        );
+    return true;
   }
   receipt(providerId, state) {
     if (!["SENT", "DELIVERED", "READ"].includes(state)) return;
@@ -737,8 +1093,10 @@ class Dispatcher {
           )
           .run(state, at, job.id);
       const msg = this.db
-        .prepare("SELECT * FROM messages WHERE whatsapp_msg_id=?")
-        .get(providerId);
+        .prepare(
+          "SELECT * FROM messages WHERE correlation_id=? OR whatsapp_msg_id=?",
+        )
+        .get(providerId, providerId);
       if (msg && (rank[msg.status] || 0) < rank[state]) {
         this.db
           .prepare(

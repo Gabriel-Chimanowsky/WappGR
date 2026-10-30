@@ -79,7 +79,7 @@ class Runtime {
     if (paused) reasons.push({ type: "MANUAL_PAUSE", count: paused });
     return {
       pid: process.pid,
-      transport: "BAILEYS",
+      transport: "CLOUD_API",
       startedAt: this.startedAt,
       heartbeatAt: new Date().toISOString(),
       uptimeSeconds: Math.floor(process.uptime()),
@@ -136,10 +136,17 @@ class Runtime {
       setInterval(
         () =>
           this.run("automations", () => {
+            this.provider.processEvents?.(this.dispatcher, this.flows);
             this.flows.tick();
             this.scheduler.tick();
           }),
         this.intervalMs,
+      ),
+    );
+    this.timers.push(
+      setInterval(
+        () => this.run("catalog", () => this.provider.refreshIfDue?.()),
+        1000,
       ),
     );
     this.timers.push(

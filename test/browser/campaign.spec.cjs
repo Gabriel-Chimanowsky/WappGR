@@ -1,4 +1,7 @@
 const { test, expect } = require("@playwright/test");
+test.beforeEach(async ({ request }) => {
+  await request.post("/__test/reset");
+});
 test("interface: login, criação, pausa no 17, recarga, retomada de saldo e cancelamento", async ({
   page,
   request,
@@ -17,6 +20,7 @@ test("interface: login, criação, pausa no 17, recarga, retomada de saldo e can
   await page
     .getByLabel("Título", { exact: true })
     .fill("Campanha visual isolada");
+  await page.getByRole("radio", { name: "Servi\u00e7o", exact: true }).check();
   await page.getByLabel("Mensagem (texto)", { exact: true }).fill("Olá {nome}");
   await page.getByLabel(/^Entre mensagens/).fill("2");
   await expect(page.getByText("1000 elegíveis", { exact: true })).toBeVisible();
@@ -110,6 +114,7 @@ test("interface: seleção entre páginas, exclusões, campanhas manuais e relat
   await page
     .getByLabel("Título", { exact: true })
     .fill("Seleção entre páginas");
+  await page.getByRole("radio", { name: "Servi\u00e7o", exact: true }).check();
   await page
     .getByLabel("Mensagem (texto)", { exact: true })
     .fill("Teste {nome}");
@@ -176,6 +181,10 @@ test("interface: importação, fluxo, chat, agendamento, CRM e revisão da restr
   await page
     .getByPlaceholder("Ex: Funil de Apresentação de Produtos", { exact: true })
     .fill("Fluxo visual validado");
+  await page
+    .getByRole("radio", { name: "Servi\u00e7o", exact: true })
+    .first()
+    .check();
   await page.getByPlaceholder("1", { exact: true }).first().fill("SAIR");
   await page
     .getByRole("button", { name: "Salvar Funil Completo", exact: true })
@@ -200,8 +209,8 @@ test("interface: importação, fluxo, chat, agendamento, CRM e revisão da restr
   await page
     .getByRole("button", { name: "Chat em Tempo Real", exact: true })
     .click();
-  await expect(page.getByText(/Regra interna de atendimento:/)).toContainText(
-    "não uma exigência técnica do Baileys",
+  await expect(page.getByText(/Atendimento de Servi/)).toContainText(
+    "24 horas",
   );
   await page
     .getByLabel("Buscar conversa", { exact: true })
@@ -227,6 +236,7 @@ test("interface: importação, fluxo, chat, agendamento, CRM e revisão da restr
   await page
     .getByLabel("Mensagem da regra", { exact: true })
     .fill("Agendamento sintético");
+  await page.getByRole("radio", { name: "Servi\u00e7o", exact: true }).check();
   await page.getByRole("button", { name: "Criar regra", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: "Regra visual · Ativa", exact: true }),
@@ -251,11 +261,8 @@ test("interface: importação, fluxo, chat, agendamento, CRM e revisão da restr
   ).toBeVisible();
   await page.getByRole("button", { name: /Conectar WhatsApp/ }).click();
   await expect(
-    page.getByText("Transporte ativo: Baileys, por pareamento do WhatsApp."),
+    page.getByRole("heading", { name: /Cloud API oficial/ }),
   ).toBeVisible();
-  await expect(
-    page.getByText(/Cloud API|templates aprovados|credenciais Meta/i),
-  ).toHaveCount(0);
   await page
     .getByLabel("Motivo da suspensão ou registro da revisão", { exact: true })
     .fill("Restrição sintética de 24 horas");

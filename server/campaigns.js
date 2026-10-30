@@ -13,6 +13,7 @@ const {
   validateSelection,
 } = require("./domain");
 const { toUtc } = require("./time");
+const official = require("./official-policy");
 const TERMINAL = [
   "COMPLETED",
   "COMPLETED_WITH_FAILURES",
@@ -68,7 +69,7 @@ class Campaigns {
       return response;
     })();
   }
-  audience(selection = {}) {
+  audience(selection = {}, messageCategory = null) {
     validateSelection(selection);
     const excluded = new Set(selection.excludedIds || []);
     if (excluded.size > 100000) fail("Muitas exclusões.");
@@ -127,6 +128,8 @@ class Campaigns {
       invalidIdentity: 0,
       duplicate: 0,
       missing,
+      outsideWindow: 0,
+      optedOut: 0,
     };
     const phones = new Set(),
       eligible = [];
@@ -135,8 +138,13 @@ class Campaigns {
         reasons.excludedByOperator++;
         continue;
       }
-      if (lead.status !== "OPT_IN") {
-        reasons.notOptedIn++;
+      const denied = messageCategory
+        ? official.eligibility(lead, messageCategory, this.now())
+        : null;
+      if (denied || (!messageCategory && lead.status !== "OPT_IN")) {
+        if (denied?.code === "WINDOW_EXPIRED") reasons.outsideWindow++;
+        else if (denied?.code === "OPT_OUT") reasons.optedOut++;
+        else reasons.notOptedIn++;
         continue;
       }
       if (!validDestination(lead)) {
@@ -159,6 +167,171 @@ class Campaigns {
         reasons,
       },
     };
+  }
+  preview(input) {
+    const config = official.validateMessage(this.db, input, {
+      required: false,
+      now: this.now(),
+    });
+    const audience = this.audience(
+      input.selection || {
+        type: "filters",
+        filters: { categoryId: input.categoryId },
+      },
+      config.messageCategory,
+    );
+    const cost = official.estimate(this.db, config, audience.rows, this.now());
+    return {
+      ...audience.summary,
+      messageCategory: config.messageCategory,
+      cost,
+      budgetReason: official.budgetReason(config, cost),
+      previewToken: hash({
+        config,
+        ids: audience.rows.map((l) => l.id),
+        summary: audience.summary,
+        rate: cost.rateVersion || null,
+      }),
+    };
+  }
+  assertExecutable(c) {
+    if (c.review_required)
+      fail(
+        "Revise categoria, modelo e prévia antes de reativar o registro antigo.",
+        409,
+        "REVIEW_REQUIRED",
+      );
+    const config = official.validateMessage(this.db, c.messageConfig, {
+      now: this.now(),
+    });
+    if (config.maxBudget === undefined) return config;
+    const reason = official.budgetReason(config, this.cost(c));
+    if (reason) fail(reason, 409, reason.split(":")[0]);
+    return config;
+  }
+  cost(c) {
+    const rows = this.db
+      .prepare(
+        "SELECT l.*,r.phone_snapshot phone FROM campaign_recipients r LEFT JOIN leads l ON l.id=r.lead_id WHERE r.campaign_id=? AND r.status IN ('PENDING','RESERVED','RETRY_WAIT')",
+      )
+      .all(c.id);
+    const cost = official.estimate(this.db, c.messageConfig, rows, this.now());
+    if (!cost.available) return cost;
+    let reserved = 0;
+    for (const m of this.db
+      .prepare(
+        "SELECT estimate_json FROM messages WHERE campaign_id=? AND provider='CLOUD_API' AND status IN ('SENDING','SENT','DELIVERED','READ','UNCERTAIN')",
+      )
+      .all(c.id)) {
+      const estimate = JSON.parse(m.estimate_json || "null");
+      if (!estimate?.available || estimate.currency !== cost.currency)
+        return {
+          ...cost,
+          available: false,
+          total: null,
+          reason:
+            "Há mensagens aceitas ou incertas sem estimativa compatível. Reconcilie antes de aumentar a exposição.",
+        };
+      reserved += estimate.total;
+    }
+    return {
+      ...cost,
+      reserved,
+      total: Math.round((cost.total + reserved) * 1e6) / 1e6,
+    };
+  }
+  edit(campaignId, input, actor = "admin") {
+    return this.db.transaction(() => {
+      const old = this.get(campaignId);
+      if (
+        old.inFlight ||
+        old.cancel_requested ||
+        (!old.manual_paused &&
+          !["DRAFT", "REVIEW_REQUIRED"].includes(old.execution_status)) ||
+        TERMINAL.includes(old.execution_status)
+      )
+        fail("Edite um rascunho ou pause a campanha antes de revisar.", 409);
+      const merged = {
+        ...old.config,
+        ...old.messageConfig,
+        title: old.title,
+        message: old.message,
+        ...input,
+      };
+      const config = official.validateMessage(this.db, merged, {
+        required: old.execution_status !== "DRAFT",
+        now: this.now(),
+      });
+      const selection = JSON.parse(old.selection_json).selection || {
+        type: "ids",
+        ids: this.db
+          .prepare(
+            "SELECT lead_id FROM campaign_recipients WHERE campaign_id=?",
+          )
+          .all(campaignId)
+          .map((r) => r.lead_id),
+      };
+      if (
+        old.review_required &&
+        (input.reviewed !== true ||
+          input.previewToken !==
+            this.preview({ ...merged, selection }).previewToken)
+      )
+        fail(
+          "Confirme a revisão após gerar uma prévia atual de elegibilidade.",
+          409,
+          "REVIEW_REQUIRED",
+        );
+      official.history(
+        this.db,
+        "campaigns",
+        campaignId,
+        old,
+        actor,
+        this.now(),
+      );
+      const message =
+        config.messageCategory === "SERVICE"
+          ? String(merged.message || "")
+          : String(merged.message || "");
+      this.db
+        .prepare(
+          "UPDATE campaigns SET title=?,message=?,message_category=?,message_config_json=?,review_required=0,reviewed_at=?,reason=NULL WHERE id=?",
+        )
+        .run(
+          text(merged.title, "Título", 200),
+          message,
+          config.messageCategory,
+          JSON.stringify(config),
+          utc(this.now()),
+          campaignId,
+        );
+      for (const r of this.db
+        .prepare(
+          "SELECT l.*,c.name category_name FROM campaign_recipients r JOIN leads l ON l.id=r.lead_id LEFT JOIN categories c ON c.id=l.category_id WHERE r.campaign_id=? AND r.status IN ('PENDING','RETRY_WAIT')",
+        )
+        .all(campaignId)) {
+        // The audience, batches and all attempted messages remain frozen.
+        this.db
+          .prepare(
+            "UPDATE campaign_recipients SET message_snapshot=? WHERE campaign_id=? AND lead_id=? AND status IN ('PENDING','RETRY_WAIT')",
+          )
+          .run(personalize(message, r), campaignId, r.id);
+      }
+      if (old.execution_status === "REVIEW_REQUIRED")
+        this.setState(
+          campaignId,
+          "PAUSED",
+          "Revisão concluída; continue explicitamente.",
+        );
+      this.event(
+        campaignId,
+        "CONFIGURATION_REVIEWED",
+        { messageConfig: config },
+        actor,
+      );
+      return this.get(campaignId);
+    })();
   }
   config(input = {}) {
     const timezone = zone(input.timezone || "America/Sao_Paulo");
@@ -206,15 +379,24 @@ class Campaigns {
   }
   create(input, key, actor = "admin") {
     return this.once("create-campaign", key, input, () => {
-      const title = text(input.title, "Título", 200),
-        message = text(input.message, "Mensagem", 10000);
+      const title = text(input.title, "Título", 200);
       const config = this.config(input);
+      const messageConfig = official.validateMessage(this.db, input, {
+        required: config.startMode !== "DRAFT",
+        now: this.now(),
+      });
+      const message =
+        messageConfig.messageCategory === "SERVICE" &&
+        config.startMode !== "DRAFT" &&
+        (messageConfig.type || "TEXT") === "TEXT"
+          ? text(input.message, "Mensagem", 4096)
+          : String(input.message || "").slice(0, 4096);
       const selection = input.selection || {
         type: "filters",
         filters: { category: input.categoryFilter },
       };
-      const audience = this.audience(selection);
-      if (!audience.rows.length)
+      const audience = this.audience(selection, messageConfig.messageCategory);
+      if (!audience.rows.length && config.startMode !== "DRAFT")
         fail("Nenhum destinatário elegível.", 400, "NO_AUDIENCE");
       const campaignId = id(),
         at = utc(this.now());
@@ -238,6 +420,25 @@ class Campaigns {
           at,
           at,
         );
+      this.db
+        .prepare(
+          "UPDATE campaigns SET message_category=?,message_config_json=? WHERE id=?",
+        )
+        .run(
+          messageConfig.messageCategory,
+          JSON.stringify(messageConfig),
+          campaignId,
+        );
+      const budget = official.budgetReason(
+        messageConfig,
+        official.estimate(this.db, messageConfig, audience.rows, this.now()),
+      );
+      if (budget && state !== "DRAFT")
+        this.db
+          .prepare(
+            "UPDATE campaigns SET manual_paused=1,execution_status='BUDGET_SUSPENDED',reason=? WHERE id=?",
+          )
+          .run(budget, campaignId);
       const restriction = this.db
         .prepare("SELECT * FROM account_control WHERE id=1")
         .get();
@@ -311,6 +512,7 @@ class Campaigns {
     return {
       ...c,
       config,
+      messageConfig: JSON.parse(c.message_config_json),
       counts,
       attempts,
       inFlight,
@@ -341,6 +543,8 @@ class Campaigns {
   control(campaignId, action, body, key, actor) {
     return this.once("control:" + campaignId, key, { action, body }, () => {
       const c = this.get(campaignId);
+      if (["resume", "start", "authorize-next", "retry"].includes(action))
+        this.assertExecutable(c);
       if (
         ["resume", "start", "authorize-next", "retry"].includes(action) &&
         this.db

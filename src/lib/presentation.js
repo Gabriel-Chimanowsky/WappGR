@@ -1,4 +1,13 @@
+import categories from "../../shared/message-categories.json";
+export const categoryLabel = (value) =>
+  categories.find((c) => c.value === value)?.label || "Não selecionada";
 export const states = {
+  REVIEW_REQUIRED: "Revisão obrigatória",
+  BUDGET_SUSPENDED: "Suspensa por orçamento",
+  SUSPENDED: "Suspenso para revisão",
+  WAITING_WINDOW: "Aguardando nova mensagem do cliente",
+  WAITING_CUSTOMER: "Aguardando nova mensagem do cliente",
+  ACCEPTED: "Aceita pela API; entrega não confirmada",
   DRAFT: "Rascunho",
   SCHEDULED: "Agendada",
   RUNNING: "Executando",

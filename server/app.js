@@ -3,9 +3,9 @@ const { randomBytes, timingSafeEqual } = require("node:crypto");
 const { installAuth } = require("./auth");
 const { id, utc, fail, text, page, integer } = require("./domain");
 const { Leads } = require("./leads");
-const { canSend } = require("./policy");
 const { validateFlow } = require("./flows");
 const { nextOccurrence } = require("./time");
+const official = require("./official-policy");
 function createApp({
   db,
   campaigns,
@@ -20,6 +20,26 @@ function createApp({
 }) {
   const app = express();
   app.disable("x-powered-by");
+  if (process.env.WAPPGR_TRUST_PROXY === "loopback")
+    app.set("trust proxy", "loopback");
+  app.get("/api/webhooks/whatsapp", (req, res) => {
+    if (!provider.verifyChallenge?.(req.query))
+      return res.status(403).send("Verificação recusada");
+    res.type("text/plain").send(String(req.query["hub.challenge"] || ""));
+  });
+  app.post(
+    "/api/webhooks/whatsapp",
+    express.raw({ type: "application/json", limit: "2mb", inflate: false }),
+    (req, res) => {
+      if (isShuttingDown()) return res.sendStatus(503);
+      if (!provider.acceptWebhook) return res.sendStatus(503);
+      const persisted = provider.acceptWebhook(
+        req.body,
+        req.get("x-hub-signature-256"),
+      );
+      res.status(200).json({ received: true, persisted });
+    },
+  );
   app.use(express.json({ limit: "10mb" }));
   app.use("/api", (req, res, next) => {
     if (isShuttingDown())
@@ -54,7 +74,7 @@ function createApp({
       ? getHealth()
       : {
           pid: process.pid,
-          transport: "BAILEYS",
+          transport: "CLOUD_API",
           dispatcher: { busy: dispatcher.busy },
         };
     res.status(health.state === "DEGRADED" ? 503 : 200).json(health);
@@ -335,7 +355,10 @@ function createApp({
     });
   });
   app.post(base + "/campaigns/preview", (req, res) =>
-    res.json(campaigns.audience(req.body.selection || req.body).summary),
+    res.json(campaigns.preview(req.body)),
+  );
+  app.patch(base + "/campaigns/:id", (req, res) =>
+    res.json(campaigns.edit(req.params.id, req.body, actor(req))),
   );
   app.get(base + "/campaigns", (req, res) => res.json(campaigns.list()));
   for (const route of ["/campaigns", "/campaigns/send"])
@@ -399,6 +422,7 @@ function createApp({
         .all()
         .map((s) => ({
           ...s,
+          messageConfig: JSON.parse(s.message_config_json),
           specificDays: JSON.parse(s.specific_days),
           executions: db
             .prepare(
@@ -422,6 +446,13 @@ function createApp({
       .prepare("SELECT * FROM schedules WHERE id=?")
       .get(req.params.id);
     if (!s) fail("Regra não encontrada.", 404);
+    if (!s.active) {
+      if (s.review_required)
+        fail("Edite e revise a regra antes de ativar.", 409, "REVIEW_REQUIRED");
+      official.validateMessage(db, JSON.parse(s.message_config_json), {
+        now: now(),
+      });
+    }
     const next = s.active ? null : nextOccurrence(s, now());
     if (!s.active && !next) fail("Regra sem próximas ocorrências.", 409);
     db.prepare("UPDATE schedules SET active=?,next_run_at=? WHERE id=?").run(
@@ -435,6 +466,29 @@ function createApp({
         "Alteradas somente ocorrências futuras; execuções existentes são controladas nas campanhas.",
     });
   });
+  app.patch(base + "/schedules/:id", (req, res) =>
+    res.json(
+      db.transaction(() => {
+        const old = db
+          .prepare("SELECT * FROM schedules WHERE id=?")
+          .get(req.params.id);
+        if (!old) fail("Regra não encontrada.", 404);
+        const b = req.body;
+        if (
+          old.review_required &&
+          (b.reviewed !== true ||
+            b.previewToken !== campaigns.preview(b).previewToken)
+        )
+          fail(
+            "Gere a prévia e confirme a revisão da regra antiga.",
+            409,
+            "REVIEW_REQUIRED",
+          );
+        official.history(db, "schedules", old.id, old, actor(req), now());
+        return scheduler.create(b, old.id);
+      })(),
+    ),
+  );
   app.delete(base + "/schedules/:id", (req, res) => {
     db.prepare("DELETE FROM schedules WHERE id=?").run(req.params.id);
     res.json({ success: true });
@@ -460,7 +514,7 @@ function createApp({
         .reverse(),
       jobs: db
         .prepare(
-          "SELECT id,lead_id,kind,status,error,created_at,payload_json FROM outbound_jobs WHERE lead_id=? AND status IN ('PENDING','SKIPPED','CANCELLED') ORDER BY created_at DESC LIMIT 50",
+          "SELECT id,lead_id,kind,status,error,created_at,payload_json,intended_category,provider_status FROM outbound_jobs WHERE lead_id=? AND status IN ('PENDING','SKIPPED','CANCELLED','SUSPENDED','WAITING_WINDOW') ORDER BY created_at DESC LIMIT 50",
         )
         .all(req.query.leadId),
       pagination: {
@@ -474,16 +528,33 @@ function createApp({
   app.post(base + "/chat/send", (req, res) =>
     res.json(
       campaigns.once("chat-send", key(req), req.body, () => {
-        const lead = leads.get(req.body.leadId),
-          reason = canSend(lead, "HUMAN_REPLY", now());
-        if (reason) fail(reason, 409);
+        const lead = leads.get(req.body.leadId);
+        const config = official.validateMessage(
+          db,
+          {
+            ...req.body,
+            messageCategory: req.body.messageCategory || "SERVICE",
+          },
+          { now: now() },
+        );
+        const denied = official.eligibility(
+          lead,
+          config.messageCategory,
+          now(),
+          "HUMAN_REPLY",
+        );
+        if (denied) fail(denied.reason, 409, denied.code);
         const job = dispatcher.enqueue({
           lead,
           kind: "HUMAN_REPLY",
           payload: {
-            type: "TEXT",
-            text: text(req.body.text, "Mensagem", 10000),
+            type: config.type || "TEXT",
+            mediaUrl: config.mediaUrl,
+            text: config.template
+              ? "[Modelo " + config.template.name + "]"
+              : text(req.body.text, "Mensagem", 4096),
           },
+          messageConfig: config,
           priority: 0,
           actor: actor(req),
         });
@@ -501,7 +572,7 @@ function createApp({
         ...provider.getStatus(),
         qr: provider.getStatus().qrCode,
         account: dispatcher.accountStatus(),
-        transport: "BAILEYS",
+        transport: "CLOUD_API",
       }),
     );
   app.post(base + "/connection/restrict", (req, res) =>
@@ -540,6 +611,51 @@ function createApp({
     await provider.init();
     res.json({ success: true, ...provider.getStatus() });
   });
+  app.get(base + "/cloud/config", (req, res) => res.json(provider.getStatus()));
+  app.post(base + "/cloud/config", (req, res) =>
+    res.json(provider.saveConfig(req.body)),
+  );
+  app.post(base + "/cloud/test", async (req, res) =>
+    res.json(await provider.testPermissions()),
+  );
+  app.get(base + "/cloud/templates", (req, res) =>
+    res.json(official.catalog(db)),
+  );
+  app.post(base + "/cloud/templates/sync", async (req, res) =>
+    res.json(await provider.syncTemplates()),
+  );
+  app.get(base + "/cloud/rates", (req, res) =>
+    res.json(
+      db
+        .prepare(
+          "SELECT * FROM cloud_rates ORDER BY created_at DESC,rowid DESC LIMIT 50",
+        )
+        .all()
+        .map((r) => ({ ...r, data: JSON.parse(r.data_json) })),
+    ),
+  );
+  app.post(base + "/cloud/rates", (req, res) =>
+    res.status(201).json(official.saveRates(db, req.body, now())),
+  );
+  app.get(base + "/cloud/events", (req, res) =>
+    res.json(
+      db
+        .prepare(
+          "SELECT id,status,created_at,processed_at,error FROM cloud_events ORDER BY created_at DESC LIMIT 100",
+        )
+        .all(),
+    ),
+  );
+  app.get(base + "/cloud/billing", (req, res) =>
+    res.json({
+      note: "Eventos de cobrança do provedor; não substituem a fatura Meta.",
+      messages: db
+        .prepare(
+          "SELECT id,lead_phone,whatsapp_msg_id,intended_category,approved_category,sent_format,status,provider_status,pricing_json FROM messages WHERE provider='CLOUD_API' AND direction='OUTBOUND' ORDER BY timestamp DESC LIMIT 200",
+        )
+        .all(),
+    }),
+  );
   app.post(base + "/connection/logout", async (req, res) => {
     await provider.logout();
     res.json({ success: true, ...provider.getStatus() });
@@ -647,11 +763,39 @@ function createApp({
   });
   const flowView = (row) => ({
     ...row,
+    messageCategory: row.message_category,
     steps: JSON.parse(row.steps_json),
     activeSessions: db
       .prepare("SELECT COUNT(*) n FROM lead_flow_sessions WHERE flow_id=?")
       .get(row.id).n,
+    sessions: db
+      .prepare(
+        "SELECT lead_id,status,reason,current_step_id FROM lead_flow_sessions WHERE flow_id=? LIMIT 100",
+      )
+      .all(row.id),
   });
+  const flowPreview = (body) => {
+    const steps = validateFlow(body, db, now());
+    const paths = steps.map((s) => {
+      const config = {
+        ...s,
+        messageCategory: s.messageCategory || body.messageCategory,
+      };
+      return { id: s.id, ...campaigns.preview(config) };
+    });
+    return {
+      steps: paths,
+      note: "Estimativa por etapa e audiência atual. Ramos, respostas e repetições alteram o total; não há total exato por fluxo.",
+      previewToken: require("./domain").hash({
+        category: body.messageCategory,
+        steps,
+        paths,
+      }),
+    };
+  };
+  app.post(base + "/flows/preview", (req, res) =>
+    res.json(flowPreview(req.body)),
+  );
   const getFlow = (flowId) => {
     const f = db.prepare("SELECT * FROM flows WHERE id=?").get(flowId);
     if (!f) fail("Fluxo não encontrado.", 404);
@@ -669,10 +813,21 @@ function createApp({
     res.json(flowView(getFlow(req.params.id))),
   );
   const saveFlow = (body, flowId) => {
-    const steps = validateFlow(body, db),
+    const steps = validateFlow(body, db, now()),
       at = utc(now());
     if (flowId) {
-      getFlow(flowId);
+      const old = getFlow(flowId);
+      if (
+        old.review_required &&
+        (body.reviewed !== true ||
+          body.previewToken !== flowPreview(body).previewToken)
+      )
+        fail(
+          "Gere a prévia e confirme a revisão do fluxo antigo.",
+          409,
+          "REVIEW_REQUIRED",
+        );
+      official.history(db, "flows", flowId, old, "admin", now());
       db.prepare(
         "UPDATE flows SET name=?,description=?,trigger_type=?,trigger_keywords=?,active=?,steps_json=?,updated_at=? WHERE id=?",
       ).run(
@@ -687,7 +842,7 @@ function createApp({
       );
       db.prepare("DELETE FROM lead_flow_sessions WHERE flow_id=?").run(flowId);
       db.prepare(
-        "UPDATE outbound_jobs SET status='CANCELLED',error='Fluxo editado' WHERE source_id=? AND status='PENDING'",
+        "UPDATE outbound_jobs SET status='CANCELLED',error='Fluxo editado' WHERE source_id=? AND status IN ('PENDING','WAITING_WINDOW','SUSPENDED')",
       ).run(flowId);
     } else {
       flowId = id();
@@ -705,6 +860,9 @@ function createApp({
         at,
       );
     }
+    db.prepare(
+      "UPDATE flows SET message_category=?,review_required=0,reviewed_at=? WHERE id=?",
+    ).run(official.category(body.messageCategory, !!body.active), at, flowId);
     return flowView(getFlow(flowId));
   };
   app.post(base + "/flows", (req, res) =>
@@ -722,6 +880,11 @@ function createApp({
   );
   app.patch(base + "/flows/:id/toggle", (req, res) => {
     const f = getFlow(req.params.id);
+    if (!f.active) {
+      if (f.review_required)
+        fail("Edite e revise o fluxo antes de ativar.", 409, "REVIEW_REQUIRED");
+      validateFlow({ ...flowView(f), active: 1 }, db, now());
+    }
     db.transaction(() => {
       db.prepare("UPDATE flows SET active=?,updated_at=? WHERE id=?").run(
         f.active ? 0 : 1,
@@ -731,7 +894,7 @@ function createApp({
       if (f.active) {
         db.prepare("DELETE FROM lead_flow_sessions WHERE flow_id=?").run(f.id);
         db.prepare(
-          "UPDATE outbound_jobs SET status='CANCELLED',error='Fluxo desativado' WHERE source_id=? AND status='PENDING'",
+          "UPDATE outbound_jobs SET status='CANCELLED',error='Fluxo desativado' WHERE source_id=? AND status IN ('PENDING','WAITING_WINDOW','SUSPENDED')",
         ).run(f.id);
       }
     })();
@@ -741,7 +904,7 @@ function createApp({
     getFlow(req.params.id);
     db.transaction(() => {
       db.prepare(
-        "UPDATE outbound_jobs SET status='CANCELLED',error='Fluxo excluído' WHERE source_id=? AND status='PENDING'",
+        "UPDATE outbound_jobs SET status='CANCELLED',error='Fluxo excluído' WHERE source_id=? AND status IN ('PENDING','WAITING_WINDOW','SUSPENDED')",
       ).run(req.params.id);
       db.prepare("DELETE FROM flows WHERE id=?").run(req.params.id);
     })();

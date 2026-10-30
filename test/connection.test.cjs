@@ -107,7 +107,7 @@ test("conexão: logout aguarda gravação de credenciais simuladas sem recriar a
   assert.equal(manager.getStatus().status, "DISCONNECTED");
 });
 
-test("Baileys integrado: campanha fora de 24h, entrada deduplicada, opt-out e restrição após reconexão", async (t) => {
+test("Baileys legado isolado (fora da inicialização oficial): campanha fora de 24h, entrada deduplicada, opt-out e restrição após reconexão", async (t) => {
   const dir = fs.mkdtempSync(
       path.join(os.tmpdir(), "wappgr-baileys-integrated-"),
     ),
@@ -154,7 +154,7 @@ test("Baileys integrado: campanha fora de 24h, entrada deduplicada, opt-out e re
     .run(new Date(f.now() - 90000000).toISOString());
   await Promise.all([manager.init(), manager.init()]);
   mock.ev.emit("connection.update", { connection: "open" });
-  const campaign = f.create();
+  const campaign = f.create({ messageCategory: "SERVICE", template: null });
   await f.step(2);
   assert.equal(mock.sockets, 1);
   assert.equal(calls.length, 2);
@@ -204,7 +204,7 @@ test("Baileys integrado: campanha fora de 24h, entrada deduplicada, opt-out e re
     lastDisconnect: { error: { output: { statusCode: 403 } } },
   });
   assert.equal(f.dispatcher.accountStatus().restricted, 1);
-  const restricted = f.create(),
+  const restricted = f.create({ messageCategory: "SERVICE", template: null }),
     before = calls.length;
   await manager.init(); // reconnection itself cannot clear persistent account state
   mock.ev.emit("connection.update", { connection: "open" });
@@ -218,7 +218,7 @@ test("Baileys integrado: campanha fora de 24h, entrada deduplicada, opt-out e re
   assert.equal(calls.length, before);
 });
 
-test("Baileys integrado: erro de rede conserva resultado incerto sem retry", async (t) => {
+test("Baileys legado isolado (fora da inicialização oficial): erro de rede conserva resultado incerto sem retry", async (t) => {
   const f = fixture({ count: 1 }),
     manager = new BaileysManager();
   t.after(() => f.db.close());
@@ -231,7 +231,7 @@ test("Baileys integrado: erro de rede conserva resultado incerto sem retry", asy
     },
   };
   f.dispatcher.provider = manager;
-  const c = f.create();
+  const c = f.create({ messageCategory: "SERVICE", template: null });
   await f.step();
   f.advance(3600000);
   await f.step(10);

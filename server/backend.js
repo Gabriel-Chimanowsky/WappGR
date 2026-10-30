@@ -12,7 +12,7 @@ const { createApp } = require("./app");
 const { Runtime } = require("./runtime");
 async function startBackend({
   config = loadEnvironment(),
-  provider = require("./baileys"),
+  provider,
   now = Date.now,
   intervalMs = 1000,
   dispatchMs = 250,
@@ -35,6 +35,7 @@ async function startBackend({
     // The credential directory also has one owner, even if DB paths differ.
     releaseAuthLock = acquireInstanceLock(config.authDir + ".instance-lock");
     db = openDatabase(config.filename);
+    provider ||= new (require("./cloud-api").CloudApiAdapter)({ db, now });
     const campaigns = new Campaigns(db, { now }),
       dispatcher = new Dispatcher(db, campaigns, provider, {
         now,
@@ -42,7 +43,10 @@ async function startBackend({
       });
     const scheduler = new Scheduler(db, campaigns, { now }),
       flows = new Flows(db, dispatcher, { now });
-    dispatcher.beforeDispatch = (leadId) => flows.tick(leadId);
+    dispatcher.beforeDispatch = (leadId) => {
+      provider.processEvents?.(dispatcher, flows);
+      flows.tick(leadId);
+    };
     provider.setCallbacks({
       onMessage: (p) =>
         flows.receive({
@@ -52,6 +56,7 @@ async function startBackend({
           pushName: p.name,
           text: p.text,
           clientTimestamp: p.clientTimestamp,
+          provider: "CLOUD_API",
         }),
       onReceipt: (id, status) => dispatcher.receipt(id, status),
       onRestriction: (reason) => dispatcher.restrictAccount(reason),
@@ -120,7 +125,7 @@ async function startBackend({
         while (dispatcher.busy && Date.now() < until)
           await new Promise((resolve) => setTimeout(resolve, 50));
         const interrupted = dispatcher.busy;
-        await provider.stop?.(); // closes the socket without logout or deleting credentials
+        await provider.stop?.(); // finish catalog/initialization work before closing SQLite
         runtime.publish();
         if (!interrupted) {
           db.pragma("wal_checkpoint(PASSIVE)");

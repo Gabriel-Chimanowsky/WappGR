@@ -26,13 +26,76 @@ function fixture({
         new Date(now).toISOString(),
       );
   })();
-  const provider = {
-    getStatus: () => ({ status: connected ? "CONNECTED" : "DISCONNECTED" }),
+  db.prepare(
+    "UPDATE leads SET cloud_last_inbound_at=last_inbound_at WHERE cloud_last_inbound_at IS NULL",
+  ).run();
+  const template = {
+    id: "synthetic-marketing",
+    name: "aviso_sintetico",
+    language: "pt_BR",
+    category: "MARKETING",
+    components: [{ type: "BODY", text: "Olá {{1}}" }],
+  };
+  const revision = require("../server/domain").hash(template);
+  db.prepare(
+    "INSERT OR IGNORE INTO cloud_templates VALUES(?,?,?,?,'APPROVED',?,?,?,1)",
+  ).run(
+    template.id,
+    template.name,
+    template.language,
+    template.category,
+    JSON.stringify(template.components),
+    revision,
+    new Date(clock).toISOString(),
+  );
+  const messageConfig = {
+    messageCategory: "MARKETING",
+    template: {
+      id: template.id,
+      revision,
+      parameters: { "body::1": { source: "name" } },
+    },
+  };
+  const cloud = new (require("../server/cloud-api").CloudApiAdapter)({
+    db,
+    now: () => clock,
+    phoneNumberId: "12345",
+    wabaId: "67890",
+    token: "synthetic-token",
+    appSecret: "synthetic-secret",
+    verifyToken: "synthetic-verify",
+    version: "v99.0",
+    fetchImpl: async (url) => ({
+      ok: true,
+      json: async () =>
+        url.includes("message_templates")
+          ? { data: [{ ...template, status: "APPROVED" }] }
+          : url.includes("phone_numbers")
+            ? { data: [{ id: "12345" }] }
+            : {
+                id: "12345",
+                display_phone_number: "sintetico",
+                verified_name: "Fixture",
+              },
+    }),
+  });
+  const provider = Object.assign(cloud, {
+    getStatus: () => ({
+      ...require("../server/cloud-api").CloudApiAdapter.prototype.getStatus.call(
+        cloud,
+      ),
+      status: connected ? "CONNECTED" : "DISCONNECTED",
+    }),
     send: async (...args) => {
       calls.push({ time: clock, args });
       return send ? send(...args) : { success: true, messageId: args[2] };
     },
-  };
+    // This synthetic catalog simulates a successful periodic approval refresh.
+    refreshIfDue: async () =>
+      db
+        .prepare("UPDATE cloud_templates SET synced_at=? WHERE id=?")
+        .run(new Date(clock).toISOString(), template.id),
+  });
   const campaigns = new Campaigns(db, { now: () => clock }),
     dispatcher = new Dispatcher(db, campaigns, provider, {
       now: () => clock,
@@ -49,6 +112,7 @@ function fixture({
     flows,
     provider,
     calls,
+    messageConfig,
     now: () => clock,
     advance: (ms) => (clock += ms),
     setTime: (v) => (clock = typeof v === "string" ? Date.parse(v) : v),
@@ -61,6 +125,7 @@ function fixture({
           batchSize: 40,
           batchIntervalSeconds: 7200,
           pacingSeconds: 2,
+          ...messageConfig,
           ...body,
         },
         key,

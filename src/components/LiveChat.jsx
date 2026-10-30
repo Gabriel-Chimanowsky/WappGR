@@ -94,9 +94,10 @@ export default function LiveChat() {
         </p>
       )}
       <p className="notice">
-        Regra interna de atendimento: mensagem recebida nas últimas 24h ou
-        opt-in. Esse prazo é uma escolha do WappGR, não uma exigência técnica do
-        Baileys. A fila e as restrições de conta são compartilhadas com as
+        Atendimento de Serviço pela Cloud API: cada cliente precisa ter enviado
+        uma mensagem nas últimas 24 horas. Opt-in e mensagens da empresa não
+        abrem essa janela. Fora dela, use uma campanha com modelo aprovado e
+        categoria adequada. A fila e as restrições são compartilhadas com as
         automações.
       </p>
       <div className="grid lg:grid-cols-[300px_1fr] gap-4">
@@ -151,6 +152,8 @@ export default function LiveChat() {
                     <p className="whitespace-pre-wrap">{m.text}</p>
                     <div className="text-xs text-slate-400 mt-2">
                       {dateLabel(m.timestamp)} · <Status value={m.status} />
+                      {m.provider_status && <> · Meta: {m.provider_status}</>}
+                      {m.provider === "BAILEYS" && " · Histórico Baileys"}
                       {m.status === "DELIVERED"
                         ? " ✓✓"
                         : m.status === "READ"

@@ -4,6 +4,7 @@ import { Send, Pause, Play, Download, RefreshCw } from "lucide-react";
 import { api, mutation, download } from "../lib/api";
 import { randomUUID } from "../lib/uuid";
 import { Field, Status, Pager } from "./QueueUI";
+import MessageConfig, { CostPreview, BudgetFields } from "./MessageConfig";
 const initial = {
   title: "",
   message: "",
@@ -15,6 +16,7 @@ const initial = {
   startMode: "IMMEDIATE",
   timezone: "America/Sao_Paulo",
   startLocal: "",
+  messageCategory: null,
 };
 export default function CampaignBroadcastWizard({
   categories = [],
@@ -23,6 +25,7 @@ export default function CampaignBroadcastWizard({
   connection,
 }) {
   const [form, setForm] = useState(initial),
+    [editId, setEditId] = useState(null),
     [categoryId, setCategory] = useState(""),
     [preview, setPreview] = useState(null),
     [campaigns, setCampaigns] = useState([]),
@@ -40,28 +43,37 @@ export default function CampaignBroadcastWizard({
   const createRequest = useRef(null),
     actionRequest = useRef(null),
     offset = useRef(0);
-  const selection = externalSelection || {
-    type: "filters",
-    filters: { categoryId },
-  };
-  const selectionKey = JSON.stringify(selection);
+  const selection = (editId && current
+    ? JSON.parse(current.selection_json).selection
+    : null) ||
+    externalSelection || {
+      type: "filters",
+      filters: { categoryId },
+    };
+  const previewKey = JSON.stringify({ ...form, selection });
   const change = (name, value) => setForm((f) => ({ ...f, [name]: value }));
   useEffect(() => {
     let alive = true;
     api("/campaigns/preview", {
       method: "POST",
-      body: JSON.stringify({ selection: JSON.parse(selectionKey) }),
+      body: previewKey,
     })
       .then((p) => {
-        if (alive) setPreview(p);
+        if (alive) {
+          setPreview(p);
+          setError("");
+        }
       })
       .catch((e) => {
-        if (alive) setError(e.message);
+        if (alive) {
+          setError(e.message);
+          setPreview(null);
+        }
       });
     return () => {
       alive = false;
     };
-  }, [selectionKey]);
+  }, [previewKey]);
   useEffect(() => {
     let alive = true,
       timer;
@@ -126,22 +138,28 @@ export default function CampaignBroadcastWizard({
     e.preventDefault();
     setBusy(true);
     setError("");
+    if (!form.messageCategory && form.startMode !== "DRAFT") {
+      setError("Selecione a Categoria da mensagem.");
+      setBusy(false);
+      return;
+    }
     try {
-      const body = { ...form, selection },
+      const body = { ...form, selection, previewToken: preview?.previewToken },
         encoded = JSON.stringify(body);
       if (createRequest.current?.encoded !== encoded)
         createRequest.current = { encoded, key: randomUUID() };
       const result = await mutation(
-        "/campaigns/send",
+        editId ? "/campaigns/" + editId : "/campaigns/send",
         body,
-        "POST",
+        editId ? "PATCH" : "POST",
         createRequest.current.key,
       );
-      setCurrentId(result.campaign.id);
-      setCurrent(result.campaign);
+      setCurrentId((result.campaign || result).id);
+      setCurrent(result.campaign || result);
       setPage(1);
       setNotice(result.message);
       setForm(initial);
+      setEditId(null);
       createRequest.current = null;
       await refresh();
     } catch (err) {
@@ -223,8 +241,10 @@ export default function CampaignBroadcastWizard({
           {notice}
         </p>
       )}
-      <details className="panel" open={!currentId}>
-        <summary className="font-bold cursor-pointer">Criar campanha</summary>
+      <details className="panel" open={!currentId || !!editId}>
+        <summary className="font-bold cursor-pointer">
+          {editId ? "Revisar campanha" : "Criar campanha"}
+        </summary>
         <form className="space-y-5 mt-5" onSubmit={create}>
           <div className="grid md:grid-cols-2 gap-4">
             <Field label="Título">
@@ -286,26 +306,47 @@ export default function CampaignBroadcastWizard({
               "Calculando audiência no servidor…"
             )}
           </div>
-          <Field label="Mensagem (texto)">
-            <textarea
-              required
-              maxLength={10000}
-              value={form.message}
-              onChange={(e) => change("message", e.target.value)}
-            />
-          </Field>
-          <div className="flex gap-2">
-            {["{nome}", "{categoria}", "{telefone}"].map((v) => (
-              <button
-                type="button"
-                className="btn"
-                key={v}
-                onClick={() => change("message", form.message + v)}
-              >
-                {v}
-              </button>
-            ))}
-          </div>
+          <MessageConfig value={form} onChange={setForm} error={error} />
+          {(!form.messageCategory || form.messageCategory === "SERVICE") && (
+            <>
+              <Field label="Mensagem (texto)">
+                <textarea
+                  required={
+                    form.startMode !== "DRAFT" &&
+                    (!form.type || form.type === "TEXT")
+                  }
+                  maxLength={10000}
+                  value={form.message}
+                  onChange={(e) => change("message", e.target.value)}
+                />
+              </Field>
+              <div className="flex gap-2">
+                {["{nome}", "{categoria}", "{telefone}"].map((v) => (
+                  <button
+                    type="button"
+                    className="btn"
+                    key={v}
+                    onClick={() => change("message", form.message + v)}
+                  >
+                    {v}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+          <BudgetFields value={form} onChange={setForm} />
+          <CostPreview preview={preview} />
+          {editId && (
+            <label className="block">
+              <input
+                type="checkbox"
+                checked={!!form.reviewed}
+                onChange={(e) => change("reviewed", e.target.checked)}
+              />{" "}
+              Revisei a categoria, o modelo, os parâmetros e a prévia de
+              elegibilidade
+            </label>
+          )}
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <Field label="Tentativas por lote (1–200)">
               <input
@@ -399,7 +440,7 @@ export default function CampaignBroadcastWizard({
             Retries consomem vagas do lote. A lista e o texto ficam congelados
             ao salvar.
           </p>
-          <button className="btn primary" disabled={busy || !preview?.eligible}>
+          <button className="btn primary" disabled={busy}>
             {busy ? "Salvando…" : "Salvar campanha"}
           </button>
         </form>
@@ -412,6 +453,8 @@ export default function CampaignBroadcastWizard({
             onClick={() => {
               setCurrentId(null);
               setCurrent(null);
+              setEditId(null);
+              setForm(initial);
             }}
           >
             Nova campanha
@@ -457,6 +500,28 @@ export default function CampaignBroadcastWizard({
                 <RefreshCw size={16} />
               </button>
             </header>
+            {!finished &&
+              (current.manual_paused ||
+                current.execution_status === "DRAFT" ||
+                current.review_required) && (
+                <button
+                  className="btn"
+                  onClick={() => {
+                    setEditId(current.id);
+                    setForm({
+                      ...initial,
+                      ...current.config,
+                      ...current.messageConfig,
+                      title: current.title,
+                      message: current.message,
+                      reviewed: false,
+                    });
+                    setError("");
+                  }}
+                >
+                  Editar / revisar categoria e conteúdo
+                </button>
+              )}
             {current.legacy ? (
               <p className="notice">
                 Campanha antiga preservada. Não há registros individuais

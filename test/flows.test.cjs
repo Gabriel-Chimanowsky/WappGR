@@ -10,11 +10,12 @@ function flow(f, steps) {
     trigger_keywords: "CATALOGO",
     steps,
     active: 1,
+    messageCategory: "SERVICE",
   };
   const valid = validateFlow(body, f.db);
   f.db
     .prepare(
-      "INSERT INTO flows(id,name,active,trigger_keywords,steps_json,updated_at) VALUES(?,?,?,?,?,?)",
+      "INSERT INTO flows(id,name,active,trigger_keywords,steps_json,updated_at,message_category) VALUES(?,?,?,?,?,?,'SERVICE')",
     )
     .run(
       "flow",
@@ -87,6 +88,28 @@ test("fluxo: continuidade recuperada, desativação interrompe, exclusão remove
   recovered.tick();
   await f.dispatcher.tick();
   assert.equal(f.calls.length, 2);
+  for (const status of ["WAITING_WINDOW", "SUSPENDED"]) {
+    f.flows.start(lead, row);
+    f.flows.tick();
+    const job = f.db
+      .prepare("SELECT job_id FROM lead_flow_sessions")
+      .get().job_id;
+    f.db
+      .prepare("UPDATE outbound_jobs SET status=? WHERE id=?")
+      .run(status, job);
+    f.db.prepare("UPDATE flows SET active=0").run();
+    f.flows.tick();
+    assert.equal(
+      f.db.prepare("SELECT status FROM outbound_jobs WHERE id=?").get(job)
+        .status,
+      "CANCELLED",
+    );
+    assert.equal(
+      f.db.prepare("SELECT COUNT(*) n FROM lead_flow_sessions").get().n,
+      0,
+    );
+    f.db.prepare("UPDATE flows SET active=1").run();
+  }
   f.flows.start(lead, row);
   f.db.prepare("UPDATE flows SET active=0").run();
   f.flows.tick();
@@ -140,6 +163,7 @@ test("campanha, cron, fluxo e chat atravessam a mesma cadência", async () => {
   const f = fixture({ count: 1 });
   f.create();
   f.scheduler.create({
+    messageCategory: "SERVICE",
     title: "Cron",
     message: "Cron",
     recurrence: "ONCE",
@@ -165,65 +189,67 @@ test("campanha, cron, fluxo e chat atravessam a mesma cadência", async () => {
   );
   f.db.close();
 });
-test("Cloud API preparado: 24h, template aprovado, erro incerto, restrição e recibo", async () => {
+test("Cloud API operacional: 24h, modelo aprovado, resultado incerto, restrição e recibo", async () => {
+  const f = fixture({ count: 1 });
   let calls = 0;
-  const now = Date.now(),
-    adapter = new CloudApiAdapter({
-      phoneNumberId: "123",
-      token: "test-only",
-      version: "v99.0",
-      approvedTemplates: [
-        { name: "aviso", language: "pt_BR", status: "APPROVED" },
-      ],
-      fetchImpl: async () => {
-        calls++;
-        return {
-          ok: true,
-          json: async () => ({ messages: [{ id: "wamid.test" }] }),
-        };
-      },
-    });
+  const adapter = new CloudApiAdapter({
+    db: f.db,
+    now: f.now,
+    phoneNumberId: "12345",
+    wabaId: "67890",
+    token: "synthetic",
+    version: "v99.0",
+    fetchImpl: async () => {
+      calls++;
+      return {
+        ok: true,
+        json: async () => ({ messages: [{ id: "wamid.test" }] }),
+      };
+    },
+  });
+  const lead = f.db.prepare("SELECT * FROM leads").get();
+  const send = (config, recipient = lead) =>
+    adapter.send(
+      lead.phone,
+      config.template
+        ? require("../server/official-policy").templatePayload(
+            require("../server/official-policy").validateMessage(f.db, config, {
+              now: f.now(),
+            }),
+            lead,
+          )
+        : { type: "TEXT", text: "Oi" },
+      "local",
+      { messageConfig: config, getLead: () => recipient },
+    );
   assert.equal(
     (
-      await adapter.send(
-        "5511999999999",
-        { type: "TEXT", text: "Oi" },
-        "local",
-        { now, lastInboundAt: new Date(now - 86400000).toISOString() },
+      await send(
+        { messageCategory: "SERVICE" },
+        {
+          ...lead,
+          cloud_last_inbound_at: new Date(f.now() - 86400000).toISOString(),
+        },
       )
     ).definitelyNotSent,
     true,
   );
   assert.equal(calls, 0);
+  assert.equal((await send({ messageCategory: "SERVICE" })).success, true);
+  assert.equal((await send(f.messageConfig)).success, true);
   assert.equal(
     (
       await adapter.send(
-        "5511999999999",
-        { type: "TEXT", text: "Oi" },
-        "local",
-        { now, lastInboundAt: new Date(now - 1000).toISOString() },
-      )
-    ).success,
-    true,
-  );
-  assert.equal(
-    (
-      await adapter.send(
-        "5511999999999",
-        { type: "TEMPLATE", templateName: "aviso", language: "pt_BR" },
-        "local",
-        {},
-      )
-    ).success,
-    true,
-  );
-  assert.equal(
-    (
-      await adapter.send(
-        "5511999999999",
+        lead.phone,
         { type: "TEMPLATE", templateName: "nao-aprovado", language: "pt_BR" },
-        "local",
-        {},
+        "invalid",
+        {
+          messageConfig: {
+            messageCategory: "MARKETING",
+            template: { id: "missing", revision: "none" },
+          },
+          getLead: () => lead,
+        },
       )
     ).success,
     false,
@@ -231,33 +257,13 @@ test("Cloud API preparado: 24h, template aprovado, erro incerto, restrição e r
   adapter.fetch = async () => {
     throw Error("timeout");
   };
-  assert.equal(
-    (
-      await adapter.send(
-        "5511999999999",
-        { type: "TEMPLATE", templateName: "aviso", language: "pt_BR" },
-        "local",
-        {},
-      )
-    ).uncertain,
-    true,
-  );
+  assert.equal((await send(f.messageConfig)).uncertain, true);
   adapter.fetch = async () => ({
     ok: false,
     status: 403,
     json: async () => ({ error: { code: 131031 } }),
   });
-  assert.equal(
-    (
-      await adapter.send(
-        "5511999999999",
-        { type: "TEMPLATE", templateName: "aviso", language: "pt_BR" },
-        "local",
-        {},
-      )
-    ).accountRestricted,
-    true,
-  );
+  assert.equal((await send(f.messageConfig)).accountRestricted, true);
   assert.equal(
     CloudApiAdapter.parseStatus({
       id: "wamid.test",
@@ -266,6 +272,7 @@ test("Cloud API preparado: 24h, template aprovado, erro incerto, restrição e r
     }).state,
     "DELIVERED",
   );
+  f.db.close();
 });
 test("CSV: barra vertical, aspas, separadores, multilinha e roundtrip de consentimento", async () => {
   const { parseLeads } = await import("../shared/csv.mjs");
@@ -292,12 +299,17 @@ test("CSV: barra vertical, aspas, separadores, multilinha e roundtrip de consent
 test("janela por destinatário: entrada antiga não renova 24h após reinício nem com envio humano", async () => {
   const { canSend } = require("../server/policy"),
     f = fixture({ count: 2 });
-  f.db.prepare("UPDATE leads SET status='PENDING',last_inbound_at=NULL").run();
+  f.db
+    .prepare(
+      "UPDATE leads SET status='PENDING',last_inbound_at=NULL,cloud_last_inbound_at=NULL",
+    )
+    .run();
   for (let i = 0; i < 2; i++) {
     const lead = f.db
       .prepare("SELECT * FROM leads WHERE id=?")
       .get("lead00000" + i);
     f.flows.receive({
+      provider: "CLOUD_API",
       msgId: "window-" + i,
       remoteJid: lead.phone + "@s.whatsapp.net",
       phone: "+" + lead.phone,
@@ -321,6 +333,9 @@ test("janela por destinatário: entrada antiga não renova 24h após reinício n
     ),
   );
   const adapter = new CloudApiAdapter({
+    db: f.db,
+    now: f.now,
+    wabaId: "456",
     phoneNumberId: "123",
     token: "synthetic",
     version: "v99.0",
@@ -333,6 +348,8 @@ test("janela por destinatário: entrada antiga não renova 24h após reinício n
     (
       await adapter.send(old.phone, { type: "TEXT", text: "Texto" }, "old", {
         now: f.now(),
+        messageConfig: { messageCategory: "SERVICE" },
+        getLead: () => old,
         lastInboundAt: old.last_inbound_at,
       })
     ).success,
@@ -342,6 +359,8 @@ test("janela por destinatário: entrada antiga não renova 24h após reinício n
     (
       await adapter.send(fresh.phone, { type: "TEXT", text: "Texto" }, "new", {
         now: f.now(),
+        messageConfig: { messageCategory: "SERVICE" },
+        getLead: () => fresh,
         lastInboundAt: fresh.last_inbound_at,
       })
     ).success,

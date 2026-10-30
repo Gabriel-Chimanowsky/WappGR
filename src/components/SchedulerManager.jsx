@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import { api, mutation } from "../lib/api";
 import { randomUUID } from "../lib/uuid";
 import { Field } from "./QueueUI";
+import MessageConfig, { CostPreview, BudgetFields } from "./MessageConfig";
 const initial = {
   title: "",
   message: "",
@@ -15,13 +16,31 @@ const initial = {
   batchSize: 40,
   batchIntervalSeconds: 7200,
   pacingSeconds: 10,
+  messageCategory: null,
+  active: true,
 };
 export default function SchedulerManager({ categories = [], onOpenCampaign }) {
   const [rules, setRules] = useState([]),
+    [editId, setEditId] = useState(null),
+    [preview, setPreview] = useState(null),
     [form, setForm] = useState(initial),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
   const request = useRef(null);
+  const previewKey = JSON.stringify(form);
+  useEffect(() => {
+    let live = true;
+    api("/campaigns/preview", { method: "POST", body: previewKey })
+      .then((p) => {
+        if (live) setPreview(p);
+      })
+      .catch(() => {
+        if (live) setPreview(null);
+      });
+    return () => {
+      live = false;
+    };
+  }, [previewKey]);
   useEffect(() => {
     let live = true,
       timer;
@@ -72,13 +91,23 @@ export default function SchedulerManager({ categories = [], onOpenCampaign }) {
         className="panel space-y-4"
         onSubmit={(e) => {
           e.preventDefault();
+          if (form.active && !form.messageCategory) {
+            setError("Selecione a Categoria da mensagem.");
+            return;
+          }
           act(async () => {
             const encoded = JSON.stringify(form);
             if (request.current?.encoded !== encoded)
               request.current = { encoded, key: randomUUID() };
-            await mutation("/schedules", form, "POST", request.current.key);
+            await mutation(
+              editId ? "/schedules/" + editId : "/schedules",
+              { ...form, previewToken: preview?.previewToken },
+              editId ? "PATCH" : "POST",
+              request.current.key,
+            );
             request.current = null;
             setForm(initial);
+            setEditId(null);
           });
         }}
       >
@@ -198,15 +227,38 @@ export default function SchedulerManager({ categories = [], onOpenCampaign }) {
             ))}
           </div>
         )}
-        <Field label="Mensagem da regra">
-          <textarea
-            required
-            value={form.message}
-            onChange={(e) => change("message", e.target.value)}
-          />
-        </Field>
+        <MessageConfig value={form} onChange={setForm} error={error} />
+        {(!form.messageCategory || form.messageCategory === "SERVICE") && (
+          <Field label="Mensagem da regra">
+            <textarea
+              required={form.active && (!form.type || form.type === "TEXT")}
+              value={form.message}
+              onChange={(e) => change("message", e.target.value)}
+            />
+          </Field>
+        )}
+        <BudgetFields value={form} onChange={setForm} />
+        <CostPreview preview={preview} />
+        <label className="block">
+          <input
+            type="checkbox"
+            checked={!!form.active}
+            onChange={(e) => change("active", e.target.checked)}
+          />{" "}
+          Ativar regra ao salvar (desmarque para rascunho)
+        </label>
+        {editId && (
+          <label className="block">
+            <input
+              type="checkbox"
+              checked={!!form.reviewed}
+              onChange={(e) => change("reviewed", e.target.checked)}
+            />{" "}
+            Revisei categoria, modelo e prévia de elegibilidade
+          </label>
+        )}
         <button className="btn primary" disabled={busy}>
-          Criar regra
+          {editId ? "Salvar revisão" : "Criar regra"}
         </button>
       </form>
       {rules.map((r) => (
@@ -216,6 +268,29 @@ export default function SchedulerManager({ categories = [], onOpenCampaign }) {
               {r.title} · {r.active ? "Ativa" : "Inativa"}
             </h2>
             <div className="flex gap-2">
+              <button
+                className="btn"
+                onClick={() => {
+                  setEditId(r.id);
+                  setForm({
+                    ...initial,
+                    ...JSON.parse(r.config_json),
+                    ...r.messageConfig,
+                    title: r.title,
+                    message: r.message,
+                    categoryId: r.category_id || "",
+                    recurrence: r.recurrence,
+                    timeOfDay: r.time_of_day,
+                    startDate: r.start_date || "",
+                    timezone: r.timezone,
+                    specificDays: r.specificDays,
+                    active: !!r.active,
+                    reviewed: false,
+                  });
+                }}
+              >
+                Editar / revisar
+              </button>
               <button
                 className="btn"
                 disabled={busy}
@@ -244,6 +319,8 @@ export default function SchedulerManager({ categories = [], onOpenCampaign }) {
             </div>
           </div>
           <p>
+            {r.review_required ? "Revisão obrigatória antes de ativar. " : ""}
+            {r.reason || ""}
             Próxima: {dateLabel(r.next_run_at, r.timezone)} · {r.timezone} ·{" "}
             {r.recurrence}
           </p>

@@ -1,0 +1,5 @@
+[
+  {"value":"SERVICE","label":"Serviço","description":"Atendimento em resposta a uma mensagem do cliente, dentro da janela de 24 horas."},
+  {"value":"UTILITY","label":"Utilidade","description":"Avisos relacionados a uma solicitação, pedido, agendamento, transação ou conta existente, sem conteúdo promocional."},
+  {"value":"MARKETING","label":"Marketing","description":"Ofertas, novidades, divulgação, convites e reativação comercial."}
+]

@@ -1,0 +1,17 @@
+{
+  "checkedAt": "2026-10-29T21:30:33.076Z",
+  "path": "server/backups/manual-1793259986143.sqlite",
+  "bytes": 303104,
+  "sha256": "a6141346c45cf53f6ebbed7c57f3c0079523ed9c925b34c58e06d6a5fca53cbf",
+  "integrity": "ok",
+  "foreignKeyViolations": 0,
+  "version": 2,
+  "counts": {
+    "leads": 0,
+    "campaigns": 2,
+    "messages": 17,
+    "flows": 1,
+    "schedules": 0
+  },
+  "localDatabaseVersion": 2
+}

@@ -1,7 +1,7 @@
 import React from "react";
 import {
   LayoutDashboard,
-  QrCode,
+  Settings,
   Users,
   ShieldCheck,
   Send,
@@ -25,7 +25,7 @@ export default function Sidebar({
     {
       id: "connection",
       label: "Conectar WhatsApp",
-      icon: QrCode,
+      icon: Settings,
       badge: connection?.status === "CONNECTED" ? "ON" : "OFF",
     },
     {
@@ -135,13 +135,14 @@ export default function Sidebar({
             <div>
               <p className="text-[11px] font-semibold text-slate-200">
                 {connection?.status === "CONNECTED"
-                  ? "WhatsApp Online"
+                  ? "Cloud API configurada"
                   : "Aguardando QR Code"}
               </p>
               <p className="text-[9px] text-slate-400">
-                {connection?.phone ||
+                {connection?.phoneNumberId ||
+                  connection?.phone ||
                   (connection?.status === "CONNECTED"
-                    ? "Número não informado"
+                    ? "Consulte o diagnóstico da API"
                     : "Desconectado")}
               </p>
             </div>

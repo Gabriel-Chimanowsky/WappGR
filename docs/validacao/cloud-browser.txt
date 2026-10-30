@@ -1,0 +1,30 @@
+
+> wappgr@1.0.0 test:browser
+> playwright test
+
+
+Running 8 tests using 1 worker
+
+npm.cmd : (node:896) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+No linha:2 caractere:1
++ npm.cmd run test:browser *> docs/validacao/cloud-browser.txt; Write-O ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ((node:896) Warn... env being set.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ok 1 test\browser\campaign.spec.cjs:5:1 › interface: login, criação, pausa no 17, recarga, retomada de saldo e cancelamento (11.1s)
+  ok 2 test\browser\campaign.spec.cjs:85:1 › interface: seleção entre páginas, exclusões, campanhas manuais e relatórios (9.3s)
+  ok 3 test\browser\campaign.spec.cjs:144:1 › interface: importação, fluxo, chat, agendamento, CRM e revisão da restrição (11.9s)
+  ok 4 test\browser\cloud.spec.cjs:21:1 › categorias: sem seleção inicial, validação visível, filtro de modelos e persistência na edição (9.7s)
+  ok 5 test\browser\cloud.spec.cjs:118:1 › fluxos: herança, substituição explícita, modelo compatível e persistência após recarregar (3.7s)
+  ok 6 test\browser\cloud.spec.cjs:199:1 › agendamentos: categoria obrigatória, rascunho editável e persistência após recarregar (2.3s)
+  ok 7 test\browser\cloud.spec.cjs:246:1 › revisão de legado e configuração administrativa não revelam segredos (2.5s)
+  ok 8 test\browser\uuid.spec.cjs:6:1 › interface sem randomUUID: criação e repetição não duplicam a campanha (2.0s)
+
+  8 passed (54.7s)
+npm notice
+npm notice New major version of npm available! 11.17.0 -> 12.2.1
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.1
+npm notice To update run: npm install -g npm@12.2.1
+npm notice

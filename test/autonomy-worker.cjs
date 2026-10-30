@@ -49,6 +49,7 @@ const provider = {
     backend.campaigns.create(
       {
         title: "Autônoma sintética",
+        messageCategory: "SERVICE",
         message: "Envio autorizado no teste",
         batchSize: 40,
         pacingSeconds: 1,

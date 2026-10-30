@@ -2,7 +2,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { randomUUID } = require("node:crypto");
 
-const VERSION = 2;
+const VERSION = 3;
 function needsMigration(db) {
   if (
     !db
@@ -11,8 +11,11 @@ function needsMigration(db) {
   )
     return true;
   return (
-    (db.prepare("SELECT MAX(version) v FROM schema_migrations").get().v || 0) <
-    VERSION
+    (db
+      .prepare(
+        "SELECT COUNT(*) v FROM schema_migrations WHERE version BETWEEN 1 AND ?",
+      )
+      .get(VERSION).v || 0) < VERSION
   );
 }
 function backupBeforeMigration(db, filename) {
@@ -45,10 +48,13 @@ function migrate(db) {
     )
       db.exec("ALTER TABLE " + table + " ADD COLUMN " + name + " " + type);
   };
-  const current = db
-    .prepare("SELECT COALESCE(MAX(version),0) version FROM schema_migrations")
-    .get().version;
-  if (current < 1)
+  const applied = new Set(
+    db
+      .prepare("SELECT version FROM schema_migrations")
+      .all()
+      .map((r) => r.version),
+  );
+  if (!applied.has(1))
     db.transaction(() => {
       for (const [name, type] of [
         ["execution_status", "TEXT NOT NULL DEFAULT 'LEGACY'"],
@@ -210,13 +216,71 @@ function migrate(db) {
         new Date().toISOString(),
       );
     })();
-  if (current < 2)
+  if (!applied.has(2))
     db.transaction(() => {
       add("leads", "legacy_messages_sent_count", "INTEGER NOT NULL DEFAULT 0");
       db.exec(`UPDATE leads SET legacy_messages_sent_count=messages_sent_count,
       messages_sent_count=(SELECT COUNT(*) FROM messages m WHERE m.lead_id=leads.id AND m.direction='OUTBOUND' AND m.status IN ('SENT','DELIVERED','READ'));`);
       db.prepare("INSERT INTO schema_migrations VALUES(?,?)").run(
         2,
+        new Date().toISOString(),
+      );
+    })();
+  if (!applied.has(3))
+    db.transaction(() => {
+      const category =
+        "TEXT CHECK(message_category IN ('SERVICE','UTILITY','MARKETING'))";
+      for (const table of ["campaigns", "flows", "schedules"]) {
+        add(table, "message_category", category);
+        add(table, "message_config_json", "TEXT NOT NULL DEFAULT '{}'");
+        add(table, "review_required", "INTEGER NOT NULL DEFAULT 0");
+        add(table, "reviewed_at", "TEXT");
+        db.exec(`UPDATE ${table} SET review_required=1`);
+      }
+      add("schedules", "reason", "TEXT");
+      add("leads", "cloud_last_inbound_at", "TEXT");
+      add("lead_flow_sessions", "reason", "TEXT");
+      for (const table of ["messages", "outbound_jobs"]) {
+        add(table, "provider", "TEXT NOT NULL DEFAULT 'CLOUD_API'");
+        add(table, "intended_category", "TEXT");
+        add(table, "approved_category", "TEXT");
+        add(table, "sent_format", "TEXT");
+        add(table, "configuration_json", "TEXT NOT NULL DEFAULT '{}'");
+        add(table, "pricing_json", "TEXT");
+        db.exec(`UPDATE ${table} SET provider='BAILEYS'`);
+      }
+      add("messages", "correlation_id", "TEXT");
+      add("messages", "estimate_json", "TEXT");
+      for (const table of ["messages", "outbound_jobs", "campaign_recipients"])
+        add(table, "provider_status", "TEXT");
+      db.exec(`
+        CREATE TABLE cloud_templates(id TEXT PRIMARY KEY, name TEXT NOT NULL, language TEXT NOT NULL,
+          category TEXT NOT NULL, status TEXT NOT NULL, components_json TEXT NOT NULL,
+          revision TEXT NOT NULL, synced_at TEXT NOT NULL, present INTEGER NOT NULL DEFAULT 1);
+        CREATE TABLE cloud_template_history(id INTEGER PRIMARY KEY, template_id TEXT NOT NULL,
+          snapshot_json TEXT NOT NULL, recorded_at TEXT NOT NULL);
+        CREATE TABLE cloud_events(id TEXT PRIMARY KEY, payload_json TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'PENDING',
+          created_at TEXT NOT NULL, processed_at TEXT, error TEXT);
+        CREATE INDEX idx_cloud_events_status ON cloud_events(status,created_at);
+        CREATE TABLE cloud_message_links(provider_id TEXT PRIMARY KEY, correlation_id TEXT NOT NULL UNIQUE,
+          created_at TEXT NOT NULL);
+        CREATE UNIQUE INDEX idx_messages_correlation ON messages(correlation_id) WHERE correlation_id IS NOT NULL;
+        CREATE TABLE cloud_rates(id TEXT PRIMARY KEY, currency TEXT NOT NULL, source TEXT NOT NULL,
+          effective_at TEXT NOT NULL, expires_at TEXT NOT NULL, data_json TEXT NOT NULL, created_at TEXT NOT NULL);
+        CREATE TABLE configuration_history(id INTEGER PRIMARY KEY, entity_type TEXT NOT NULL, entity_id TEXT NOT NULL,
+          snapshot_json TEXT NOT NULL, actor TEXT NOT NULL, created_at TEXT NOT NULL);
+        UPDATE campaigns SET manual_paused=1,execution_status='REVIEW_REQUIRED',reason='Migração Cloud API: revise categoria, conteúdo e elegibilidade'
+          WHERE execution_status NOT IN ('LEGACY','COMPLETED','COMPLETED_WITH_FAILURES','CANCELLED');
+        UPDATE schedules SET active=0,reason='Migração Cloud API: revisão obrigatória';
+        UPDATE flows SET active=0;
+        UPDATE inbound_events SET status='SUSPENDED',error='Entrada do provedor anterior preservada; não gera resposta Cloud API' WHERE status='PENDING';
+        UPDATE outbound_jobs SET status='SUSPENDED',error='Trabalho do provedor anterior: revisão obrigatória; não reenviar automaticamente'
+          WHERE status IN ('PENDING','RESERVED');
+        UPDATE lead_flow_sessions SET status='REVIEW_REQUIRED',reason='Migração Cloud API: revisão obrigatória';
+        UPDATE connection SET instance_type='CLOUD_API',status='DISCONNECTED';
+      `);
+      db.prepare("INSERT INTO schema_migrations VALUES(?,?)").run(
+        3,
         new Date().toISOString(),
       );
     })();

@@ -7,8 +7,9 @@ const {
   normalizePhone,
   personalize,
 } = require("./domain");
-const { consent, canSend } = require("./policy");
-function validateFlow(body, db) {
+const { consent } = require("./policy");
+const official = require("./official-policy");
+function validateFlow(body, db, now = Date.now()) {
   text(body.name, "Nome do fluxo", 200);
   if (!["KEYWORD", "ALL_NEW"].includes(body.trigger_type || "KEYWORD"))
     fail("Gatilho inválido.");
@@ -25,11 +26,18 @@ function validateFlow(body, db) {
   )
     fail("IDs de etapas inválidos ou repetidos.");
   const steps = body.steps.map((s) => {
-    if (!["TEXT", "IMAGE", "VIDEO", "AUDIO"].includes(s.type))
+    if (
+      !["TEXT", "IMAGE", "VIDEO", "AUDIO", "DOCUMENT", "TEMPLATE"].includes(
+        s.type,
+      )
+    )
       fail("Tipo de mídia inválido.");
     if (s.type === "AUDIO" && s.options?.length)
       fail("Use uma etapa de texto após o áudio para apresentar opções.");
-    if (s.type !== "TEXT") {
+    if (
+      !["TEXT", "TEMPLATE"].includes(s.type) &&
+      (s.messageCategory || body.messageCategory) === "SERVICE"
+    ) {
       let u;
       try {
         u = new URL(s.mediaUrl);
@@ -80,8 +88,28 @@ function validateFlow(body, db) {
         !db.prepare("SELECT id FROM categories WHERE id=?").get(categoryId))
     )
       fail("Categoria da etapa não existe.");
+    const intent = s.overrideCategory
+      ? official.category(s.messageCategory, !!body.active)
+      : official.category(s.messageCategory, false) ||
+        official.category(body.messageCategory, !!body.active);
+    const config = official.validateMessage(
+      db,
+      {
+        ...s,
+        type: s.type === "TEMPLATE" ? "TEXT" : s.type,
+        messageCategory: intent,
+      },
+      { required: !!body.active, now },
+    );
     return {
       ...s,
+      ...config,
+      type: ["UTILITY", "MARKETING"].includes(intent)
+        ? "TEMPLATE"
+        : s.type === "TEMPLATE"
+          ? "TEXT"
+          : s.type,
+      messageCategory: s.messageCategory || null,
       content: String(s.content || "").slice(0, 10000),
       options,
       delaySeconds: integer(s.delaySeconds, 1, 0, 300, "Atraso"),
@@ -104,6 +132,7 @@ function validateFlow(body, db) {
     visited.add(s.id);
   }
   steps.forEach(visit);
+  official.category(body.messageCategory, !!body.active);
   return steps;
 }
 class Flows {
@@ -132,14 +161,34 @@ class Flows {
       ).changes;
   }
   start(lead, flow, step, _actor = "system") {
-    const reason = canSend(lead, "REQUESTED_FLOW", this.now());
-    if (reason) fail(reason, 409);
+    if (flow.review_required)
+      fail(
+        "Fluxo exige revisão da configuração e da elegibilidade.",
+        409,
+        "REVIEW_REQUIRED",
+      );
     if (!flow.active) fail("Fluxo desativado.", 409);
     const first = step || JSON.parse(flow.steps_json)[0];
     if (!first) fail("Fluxo sem etapas.", 409);
+    const config = official.validateMessage(
+      this.db,
+      {
+        ...first,
+        messageCategory: first.messageCategory || flow.message_category,
+      },
+      { now: this.now() },
+    );
+    const denied = official.eligibility(
+      lead,
+      config.messageCategory,
+      this.now(),
+      "REQUESTED_FLOW",
+    );
+    if (denied && denied.code !== "WINDOW_EXPIRED")
+      fail(denied.reason, 409, denied.code);
     this.db
       .prepare(
-        "UPDATE outbound_jobs SET status='CANCELLED',error='Sessão substituída' WHERE lead_id=? AND kind='REQUESTED_FLOW' AND status='PENDING'",
+        "UPDATE outbound_jobs SET status='CANCELLED',error='Sessão substituída' WHERE lead_id=? AND kind='REQUESTED_FLOW' AND status IN ('PENDING','WAITING_WINDOW','SUSPENDED')",
       )
       .run(lead.id);
     this.db
@@ -155,6 +204,12 @@ class Flows {
         utc(this.now() + Number(first.delaySeconds || 0) * 1000),
         utc(this.now() + 24 * 3600000),
       );
+    if (denied)
+      this.db
+        .prepare(
+          "UPDATE lead_flow_sessions SET status='WAITING_CUSTOMER',reason=? WHERE lead_id=?",
+        )
+        .run(denied.reason, lead.id);
   }
   processInbound(event) {
     const payload = JSON.parse(event.payload_json),
@@ -205,9 +260,19 @@ class Flows {
       )
       .run(lastInboundAt, lastInboundAt, payload.remoteJid, lead.id);
     lead = { ...lead, last_inbound_at: lastInboundAt, jid: payload.remoteJid };
+    if (payload.provider === "CLOUD_API") {
+      const cloudAt =
+        lead.cloud_last_inbound_at && lead.cloud_last_inbound_at > messageAt
+          ? lead.cloud_last_inbound_at
+          : messageAt;
+      this.db
+        .prepare("UPDATE leads SET cloud_last_inbound_at=? WHERE id=?")
+        .run(cloudAt, lead.id);
+      lead.cloud_last_inbound_at = cloudAt;
+    }
     this.db
       .prepare(
-        "INSERT INTO messages(id,lead_id,lead_phone,lead_name,direction,text,type,whatsapp_msg_id,status,timestamp) VALUES(?,?,?,?,'INBOUND',?,'CHAT',?,'RECEIVED',?)",
+        "INSERT INTO messages(id,lead_id,lead_phone,lead_name,direction,text,type,whatsapp_msg_id,status,timestamp,provider) VALUES(?,?,?,?,'INBOUND',?,'CHAT',?,'RECEIVED',?,?)",
       )
       .run(
         id(),
@@ -217,6 +282,7 @@ class Flows {
         payload.text,
         payload.msgId,
         messageAt,
+        payload.provider || "BAILEYS",
       );
     this.db
       .prepare("UPDATE inbound_events SET lead_id=? WHERE provider_id=?")
@@ -259,6 +325,34 @@ class Flows {
     const session = this.db
       .prepare("SELECT * FROM lead_flow_sessions WHERE lead_id=?")
       .get(lead.id);
+    if (
+      session?.status === "WAITING_CUSTOMER" &&
+      official.windowOpen(lead, this.now())
+    ) {
+      const f = this.db
+        .prepare(
+          "SELECT * FROM flows WHERE id=? AND active=1 AND review_required=0",
+        )
+        .get(session.flow_id);
+      if (f) {
+        this.db
+          .prepare(
+            "UPDATE outbound_jobs SET status='PENDING',error=NULL WHERE id=? AND status='WAITING_WINDOW'",
+          )
+          .run(session.job_id);
+        this.db
+          .prepare(
+            "UPDATE lead_flow_sessions SET status=?,reason=NULL,due_at=?,expires_at=? WHERE lead_id=?",
+          )
+          .run(
+            session.job_id ? "WAITING_SEND" : "READY",
+            at,
+            utc(this.now() + official.WINDOW_MS),
+            lead.id,
+          );
+        return;
+      }
+    }
     if (session && session.status === "WAITING_REPLY") {
       const flow = this.db
         .prepare("SELECT * FROM flows WHERE id=? AND active=1")
@@ -316,7 +410,9 @@ class Flows {
     }
     if (lead.status !== "OPT_OUT") {
       for (const flow of this.db
-        .prepare("SELECT * FROM flows WHERE active=1 ORDER BY created_at,id")
+        .prepare(
+          "SELECT * FROM flows WHERE active=1 AND review_required=0 ORDER BY created_at,id",
+        )
         .all()) {
         const match =
           flow.trigger_type === "ALL_NEW"
@@ -327,7 +423,21 @@ class Flows {
                 .filter(Boolean)
                 .some((k) => word.includes(k));
         if (match) {
-          this.start(lead, flow);
+          try {
+            this.start(lead, flow);
+          } catch (e) {
+            this.db
+              .prepare("UPDATE flows SET active=0,review_required=1 WHERE id=?")
+              .run(flow.id);
+            official.history(
+              this.db,
+              "flows",
+              flow.id,
+              { reason: e.message },
+              "inbound-validation",
+              this.now(),
+            );
+          }
           return;
         }
       }
@@ -382,16 +492,11 @@ class Flows {
           "SELECT l.*,c.name category_name FROM leads l LEFT JOIN categories c ON c.id=l.category_id WHERE l.id=?",
         )
         .get(session.lead_id);
-      if (
-        !flow?.active ||
-        !lead ||
-        lead.status === "OPT_OUT" ||
-        !session.expires_at ||
-        Date.parse(session.expires_at) <= this.now()
-      ) {
+      if (flow?.review_required) continue;
+      if (!flow?.active || !lead || lead.status === "OPT_OUT") {
         this.db
           .prepare(
-            "UPDATE outbound_jobs SET status='CANCELLED',error='Sessão encerrada ou expirada' WHERE id=? AND status='PENDING'",
+            "UPDATE outbound_jobs SET status='CANCELLED',error='Sessão encerrada ou expirada' WHERE id=? AND status IN ('PENDING','WAITING_WINDOW','SUSPENDED')",
           )
           .run(session.job_id);
         this.db
@@ -404,6 +509,27 @@ class Flows {
       if (!step) {
         this.db
           .prepare("DELETE FROM lead_flow_sessions WHERE lead_id=?")
+          .run(lead.id);
+        continue;
+      }
+      const effective = {
+        ...step,
+        messageCategory: step.messageCategory || flow.message_category,
+      };
+      if (
+        ["READY", "WAITING_SEND"].includes(session.status) &&
+        effective.messageCategory === "SERVICE" &&
+        !official.windowOpen(lead, this.now())
+      ) {
+        this.db
+          .prepare(
+            "UPDATE outbound_jobs SET status='WAITING_WINDOW',error='WINDOW_EXPIRED: aguarde nova mensagem do cliente' WHERE id=? AND status='PENDING'",
+          )
+          .run(session.job_id);
+        this.db
+          .prepare(
+            "UPDATE lead_flow_sessions SET status='WAITING_CUSTOMER',reason='Janela encerrada. Aguarde nova mensagem ou revisão do operador.' WHERE lead_id=?",
+          )
           .run(lead.id);
         continue;
       }
@@ -420,16 +546,33 @@ class Flows {
           continue;
         }
         this.db.transaction(() => {
+          let messageConfig;
+          try {
+            messageConfig = official.validateMessage(this.db, effective, {
+              now: this.now(),
+            });
+          } catch (e) {
+            this.db
+              .prepare(
+                "UPDATE lead_flow_sessions SET status='REVIEW_REQUIRED',reason=? WHERE lead_id=?",
+              )
+              .run(e.code + ": " + e.message, lead.id);
+            return;
+          }
           const job = this.dispatcher.enqueue({
             lead,
             kind: "REQUESTED_FLOW",
             payload: {
               type: step.type,
-              text: personalize(step.content || "", lead),
+              text:
+                step.type === "AUDIO"
+                  ? ""
+                  : personalize(step.content || "", lead),
               mediaUrl: step.mediaUrl,
-              options: step.options,
+              options: step.type === "AUDIO" ? [] : step.options,
             },
             sourceId: flow.id,
+            messageConfig,
             sourceVersion: flow.updated_at,
             jobId: id(),
           });
@@ -446,13 +589,18 @@ class Flows {
         if (["SENT", "DELIVERED", "READ"].includes(job?.status)) {
           if (
             step.type === "AUDIO" &&
-            step.content &&
+            (step.content || step.options?.length) &&
             JSON.parse(job.payload_json).type === "AUDIO"
           ) {
             const supplemental = this.dispatcher.enqueue({
               lead,
               kind: "REQUESTED_FLOW",
-              payload: { type: "TEXT", text: personalize(step.content, lead) },
+              payload: {
+                type: "TEXT",
+                text: personalize(step.content || "", lead),
+                options: step.options,
+              },
+              messageConfig: { messageCategory: "SERVICE", type: "TEXT" },
               sourceId: flow.id,
               sourceVersion: flow.updated_at,
               jobId: job.id + ":text",
@@ -502,7 +650,13 @@ class Flows {
                 .prepare("DELETE FROM lead_flow_sessions WHERE lead_id=?")
                 .run(lead.id);
           })();
-        } else if (job && !["PENDING", "SENDING"].includes(job.status))
+        } else if (job?.status === "WAITING_WINDOW")
+          this.db
+            .prepare(
+              "UPDATE lead_flow_sessions SET status='WAITING_CUSTOMER',reason=? WHERE lead_id=?",
+            )
+            .run(job.error, lead.id);
+        else if (job && !["PENDING", "SENDING"].includes(job.status))
           this.db
             .prepare(
               "UPDATE lead_flow_sessions SET status='SEND_ERROR' WHERE lead_id=?",

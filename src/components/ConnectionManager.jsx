@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import { api, mutation } from "../lib/api";
 import { randomUUID } from "../lib/uuid";
 import { Field, Status } from "./QueueUI";
+import CloudSettings from "./CloudSettings";
 export default function ConnectionManager({ onRefresh }) {
   const request = useRef(null);
   const [connection, setConnection] = useState(null),
@@ -55,50 +56,7 @@ export default function ConnectionManager({ onRefresh }) {
           {error}
         </p>
       )}
-      <section className="panel space-y-4">
-        <Status value={connection?.status || "DISCONNECTED"} />
-        <p>
-          {connection?.profileName} {connection?.phone}
-        </p>
-        <p className="notice">
-          Transporte ativo: Baileys, por pareamento do WhatsApp.
-        </p>
-        {connection?.qrCode && (
-          <img
-            className="bg-white p-3 rounded-lg"
-            width="270"
-            height="270"
-            src={connection.qrCode}
-            alt="QR Code privado para parear o WhatsApp"
-          />
-        )}
-        <div className="flex gap-3">
-          <button
-            className="btn primary"
-            disabled={
-              busy ||
-              connection?.status === "CONNECTING" ||
-              connection?.status === "CONNECTED" ||
-              connection?.status === "PAIRING"
-            }
-            onClick={() => act("start")}
-          >
-            Iniciar pareamento
-          </button>
-          <button
-            className="btn danger"
-            disabled={busy}
-            onClick={() => {
-              if (
-                confirm("Desconectar e remover o pareamento desta instalação?")
-              )
-                act("logout");
-            }}
-          >
-            Desconectar
-          </button>
-        </div>
-      </section>
+      <CloudSettings onRefresh={onRefresh} />
       <section className="panel space-y-4">
         <h2 className="font-bold text-lg">Suspensão operacional</h2>
         <p className="notice">
